@@ -35,12 +35,3 @@ error_handler = RotatingFileHandler(
 )
 error_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 error_logger.addHandler(error_handler)
-
-# 审计日志：独立 logger，级别 INFO，记录安全相关事件
-audit_logger = logging.getLogger("audit")
-audit_logger.setLevel(logging.INFO)
-audit_handler = RotatingFileHandler(
-    os.path.join(load_env.LOG_PATH, 'audit.log'), maxBytes=2*1024*1024, backupCount=5, encoding='utf-8'
-)
-audit_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-audit_logger.addHandler(audit_handler)
