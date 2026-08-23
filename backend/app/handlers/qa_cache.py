@@ -163,12 +163,16 @@ async def lookup(query: str) -> CachedEntry | None:
     # 命中计数（驱逐排序用）。best-effort：更新失败不影响本次命中。
     # 并发下是读-改-写，可能丢更新——hits 只是驱逐排序的启发式信号，不是
     # 精确计数，丢一两次不影响正确性，刻意不做原子化。
+    # 注意必须把刚读到的整份 metadata 带上再覆盖 hits：chromadb 的 update
+    # 对 metadata 是整体替换而不是按键合并，只传 {"hits": N} 会把
+    # question/answer/kind 等字段全部抹掉——条目命中一次后就"自毁"，
+    # 第二次命中同一问题时返回空答案。
     try:
         await asyncio.wait_for(
             asyncio.to_thread(
                 collection.update,
                 ids=[entry_id],
-                metadatas=[{"hits": int(metadata.get("hits", 0)) + 1}],
+                metadatas=[{**metadata, "hits": int(metadata.get("hits", 0)) + 1}],
             ),
             timeout=_LOOKUP_TIMEOUT_SECONDS,
         )
@@ -199,7 +203,10 @@ async def _store(
         embedding = await _embed(query)
         file_name, source_text = _first_source(source_nodes[0]) if source_nodes else ("", "")
         collection = _get_collection()
-        collection.upsert(
+        # upsert/get/delete 是同步磁盘 I/O，统一 to_thread（lookup 里早就是这么
+        # 做的，写路径原先直接在事件循环上跑——并发写入会卡住整个问答服务）
+        await asyncio.to_thread(
+            collection.upsert,
             ids=[_entry_id(kind, query)],
             documents=[query],
             embeddings=[embedding],
@@ -220,7 +227,7 @@ async def _store(
         return
 
     if kind == KIND_AUTO:
-        _evict_auto_if_needed(collection)
+        await asyncio.to_thread(_evict_auto_if_needed, collection)
 
 
 def _evict_auto_if_needed(collection) -> None:
@@ -264,10 +271,14 @@ async def delete_by_question(query: str) -> None:
         return
     try:
         collection = _get_collection()
-        res = collection.get(where={"question": query}, include=["metadatas"])
-        ids = res.get("ids", [])
-        if ids:
-            collection.delete(ids=ids)
+
+        def _delete_sync() -> None:
+            res = collection.get(where={"question": query}, include=["metadatas"])
+            ids = res.get("ids", [])
+            if ids:
+                collection.delete(ids=ids)
+
+        await asyncio.to_thread(_delete_sync)
     except Exception:
         logger.warning("语义缓存按问题删除失败（best-effort）。", exc_info=True)
 
@@ -285,11 +296,17 @@ async def stats() -> dict:
         return result
     try:
         collection = _get_collection()
-        result["total"] = collection.count()
-        result["auto"] = len(collection.get(where={"kind": KIND_AUTO}, include=["metadatas"])["ids"])
-        result["curated"] = len(
-            collection.get(where={"kind": KIND_CURATED}, include=["metadatas"])["ids"]
-        )
+
+        def _stats_sync() -> None:
+            result["total"] = collection.count()
+            result["auto"] = len(
+                collection.get(where={"kind": KIND_AUTO}, include=["metadatas"])["ids"]
+            )
+            result["curated"] = len(
+                collection.get(where={"kind": KIND_CURATED}, include=["metadatas"])["ids"]
+            )
+
+        await asyncio.to_thread(_stats_sync)
     except Exception:
         logger.warning("语义缓存统计失败（best-effort）。", exc_info=True)
     return result

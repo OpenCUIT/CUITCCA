@@ -144,10 +144,19 @@ class QaCacheRoundTripTest(QaCacheBaseTest):
     def test_hits_counter_increments_on_lookup(self):
         asyncio.run(qa_cache.store_auto("同一个问题", "答案", []))
         for _ in range(3):
-            asyncio.run(qa_cache.lookup("同一个问题"))
+            entry = asyncio.run(qa_cache.lookup("同一个问题"))
+            # 回归：chromadb 的 update 是整体替换 metadata。曾只传 {"hits": N}，
+            # 把 question/answer/kind 一并抹掉——条目命中一次后自毁，第二次
+            # 命中返回空答案。每次命中都必须拿到完整条目。
+            self.assertIsNotNone(entry)
+            self.assertEqual(entry.answer, "答案")
+            self.assertEqual(entry.kind, qa_cache.KIND_AUTO)
         metas = self.collection.get(include=["metadatas"])["metadatas"]
         self.assertEqual(len(metas), 1)
         self.assertEqual(metas[0]["hits"], 3)
+        # 命中计数之外的字段在多次 update 后必须原样保留
+        self.assertEqual(metas[0]["answer"], "答案")
+        self.assertEqual(metas[0]["kind"], qa_cache.KIND_AUTO)
 
     def test_lookup_on_empty_collection_returns_none(self):
         self.assertIsNone(asyncio.run(qa_cache.lookup("任何问题")))
