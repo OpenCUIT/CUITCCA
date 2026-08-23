@@ -4,7 +4,7 @@ import os
 import configs.load_env as load_env
 from dependencies.manage import access_stats, access_stats_lock
 from dotenv import dotenv_values
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from models.llm_config import (
     LLMConfigResponse,
     LLMConfigUpdate,
@@ -120,3 +120,12 @@ async def probe_llm_endpoint(payload: LLMProbeRequest):
         (payload.api_key or '').strip() or None,
     )
     return result
+
+
+@manage_app.get('/ai-metrics', dependencies=[Depends(require_configured_api_key)])
+async def get_ai_metrics(window: int = Query(default=500, ge=10, le=5000)):
+    """AI 请求日志聚合：请求数 / 路由模式分布 / 缓存命中率 / 延迟分位 /
+    token 估算合计（数据源 log/ai_metrics.jsonl，见 utils/ai_metrics.py）。"""
+    from utils import ai_metrics
+
+    return await asyncio.to_thread(ai_metrics.summarize, window)
