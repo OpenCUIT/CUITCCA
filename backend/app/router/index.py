@@ -18,20 +18,22 @@ from handlers.graph_builder import summary_index
 from handlers.hybrid_retriever import build_retriever_for_index, invalidate_hybrid_retriever_cache
 from handlers.index_crud import (
     _indexes_lock,
-    citf,
+    _ingest_text_and_persist,
+    _reindex_document_sync,
     createIndex,
     deleteDocById,
     deleteNodeById,
     embeddingQA,
+    export_index_to_file,
     get_all_docs,
     indexes,
     insert_into_index,
+    list_documents,
     loadAllIndexes,
     saveIndex,
     updateNodeById,
 )
 from handlers.parsers.types import DocumentParseError, ParserUnavailableError
-from llama_index.core import Document
 from llama_index.core.query_engine import RetrieverQueryEngine
 from models.response import IndexListResponse, QueryResponse, UploadResponse
 from starlette.responses import JSONResponse
@@ -82,8 +84,20 @@ async def create_index(index_name: str = Form(max_length=100)):
 
 @index_app.get("/{index_name}/info")
 async def index_info(index=Depends(get_index)):
-    docs = get_all_docs(index)
+    # Chroma 的 collection.get 是同步磁盘 I/O，to_thread 卸载（下同——
+    # update/delete/save 系端点原先直接在事件循环上跑，并发时会卡住整个服务）
+    docs = await asyncio.to_thread(get_all_docs, index)
     return JSONResponse(content={'docs': docs}, status_code=status.HTTP_200_OK)
+
+
+@index_app.get("/{index_name}/documents")
+async def list_index_documents(index=Depends(get_index)):
+    """文档级列表：按 doc_id 聚合的 文件名/来源/chunk 数/字数 视图。"""
+    documents = await asyncio.to_thread(list_documents, index)
+    return JSONResponse(
+        content={'total': len(documents), 'documents': documents},
+        status_code=status.HTTP_200_OK,
+    )
 
 
 @index_app.post("/delete")
@@ -117,7 +131,8 @@ async def query_index(index=Depends(get_index), query: str = Form(max_length=500
 @index_app.post("/{index_name}/update")
 async def update_doc(nodeId, index=Depends(get_index), text: str = Form(max_length=10000)):
     try:
-        updateNodeById(index, nodeId, text)
+        # updateNodeById 里含同步 embedding 计算（几十到几百毫秒），必须卸载
+        await asyncio.to_thread(updateNodeById, index, nodeId, text)
     except (ValueError, KeyError):
         return JSONResponse(content={'status': 'detail', 'message': 'node_id not exist'},
                             status_code=status.HTTP_404_NOT_FOUND)
@@ -242,16 +257,16 @@ async def upload_qa(index=Depends(get_index), prompt: str = Form(None, max_lengt
 
 @index_app.post("/{index_name}/deleteDoc")
 async def delete_doc(doc_id: str = Query(max_length=200), index=Depends(get_index)):
-    documents = get_all_docs(index)
+    documents = await asyncio.to_thread(get_all_docs, index)
     doc_ids = list(set(doc["doc_id"] for doc in documents))
     if doc_id not in doc_ids:
-        return JSONResponse(content={"status": "detail", "message": "doc_id: not found"},
+        return JSONResponse(content={'status': 'detail', 'message': 'doc_id: not found'},
                             status_code=status.HTTP_400_BAD_REQUEST)
     try:
-        deleteDocById(index, doc_id)
+        await asyncio.to_thread(deleteDocById, index, doc_id)
     except Exception as e:
         error_logger.error(f"delete doc error: {e}")
-        return JSONResponse(content={"status": "detail", "message": "删除文档时出错"},
+        return JSONResponse(content={'status': 'detail', 'message': '删除文档时出错'},
                             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
     invalidate_hybrid_retriever_cache()
     return {"status": "deleted"}
@@ -260,9 +275,9 @@ async def delete_doc(doc_id: str = Query(max_length=200), index=Depends(get_inde
 @index_app.post("/{index_name}/deleteNode")
 async def delete_node(node_id: str = Query(max_length=200), index=Depends(get_index)):
     try:
-        deleteNodeById(index, node_id)
+        await asyncio.to_thread(deleteNodeById, index, node_id)
     except Exception:
-        return JSONResponse(content={"status": "detail", "message": "node_id: not found"},
+        return JSONResponse(content={'status': 'detail', 'message': 'node_id: not found'},
                             status_code=status.HTTP_400_BAD_REQUEST)
     invalidate_hybrid_retriever_cache()
     return {"status": "deleted"}
@@ -276,7 +291,7 @@ async def get_summary(index=Depends(get_index)):
 @index_app.post("/{index_name}/set_summary")
 async def set_summary(index=Depends(get_index), summary: str = Form(max_length=5000)):
     index.summary = summary
-    saveIndex(index)
+    await asyncio.to_thread(saveIndex, index)
     return {"status": "ok", "summary": index.summary}
 
 
@@ -284,7 +299,7 @@ async def set_summary(index=Depends(get_index), summary: str = Form(max_length=5
 async def generate_summary(index=Depends(get_index)):
     summary = await summary_index(index)
     index.summary = summary
-    saveIndex(index)
+    await asyncio.to_thread(saveIndex, index)
     return {"status": "ok", "summary": summary}
 
 
@@ -294,29 +309,55 @@ async def insert_docs(
     doc_id: str = Form(None, max_length=200),
     index=Depends(get_index),
 ):
-    if doc_id is None:
-        doc = Document(text=text)
-    else:
-        doc = Document(text=text, doc_id=doc_id)
+    """裸文本录入。走标准摄取管道（分块 + 去重），不再直接 insert_nodes——
+    直接插入的文本不分块、不去重，重复录入同一段文本会堆积完全重复的
+    chunk（见 _ingest_text_and_persist docstring）。"""
     from handlers.index_crud import _get_index_lock
     lock = await _get_index_lock(index.index_id)
-    async with lock:
-        await asyncio.to_thread(index.insert_nodes, [doc])
-        saveIndex(index)
+    try:
+        async with lock:
+            await asyncio.to_thread(_ingest_text_and_persist, index, text, doc_id)
+    except Exception as e:
+        error_logger.error(f"insert text error: {e}")
+        return JSONResponse(content={"status": "detail", "message": "文本入库失败，请稍后重试"},
+                            status_code=status.HTTP_400_BAD_REQUEST)
     invalidate_hybrid_retriever_cache()
     return {"status": "ok"}
 
 
+@index_app.post("/{index_name}/reindex")
+async def reindex_document(
+    file_name: str = Form(max_length=300),
+    index=Depends(get_index),
+):
+    """按文件名重新索引一份文档（删除旧 chunk + 清去重记忆 + 重新摄取）。
+    用于分块规则/嵌入模型变化后重建，或文档内容更新后重传。"""
+    from handlers.index_crud import _get_index_lock
+    lock = await _get_index_lock(index.index_id)
+    try:
+        async with lock:
+            result = await asyncio.to_thread(_reindex_document_sync, index, file_name)
+    except FileNotFoundError as e:
+        return JSONResponse(content={"status": "detail", "message": str(e)},
+                            status_code=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        error_logger.error(f"reindex error: {e}")
+        return JSONResponse(content={"status": "detail", "message": "重新索引失败，请查看服务端日志"},
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    invalidate_hybrid_retriever_cache()
+    return {"status": "ok", **result}
+
+
 @index_app.post("/{index_name}/save")
 async def save_index(index=Depends(get_index)):
-    saveIndex(index)
+    await asyncio.to_thread(saveIndex, index)
     return {"status": "ok"}
 
 
 @index_app.post("/{index_name}/getfile")
 async def get_file(index=Depends(get_index)):
-    await citf(index, f"{index.index_id}.txt")
-    return {"status": "ok"}
+    path = await asyncio.to_thread(export_index_to_file, index, f"{index.index_id}.txt")
+    return {"status": "ok", "path": path}
 
 
 @index_app.post("/{index_name}/evaluator")

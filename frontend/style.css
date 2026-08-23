@@ -3795,3 +3795,109 @@ pre.has_copy_btn:hover .code_copy_btn,
   .answer_actions { opacity: 1; }
 }
 
+/* ---- 文档级列表（manage §02 tab-docs）---- */
+
+.doc_toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.doc_count {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.doc_list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.doc_empty_hint {
+  padding: 22px 10px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.doc_row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  background: var(--surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.doc_row:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-xs);
+}
+
+.doc_row_main {
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+}
+
+.doc_row_name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc_row_main:hover .doc_row_name {
+  color: var(--primary);
+}
+
+.doc_row_meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.doc_row_actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.doc_action_btn {
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.doc_action_btn:hover {
+  border-color: var(--border-strong);
+  color: var(--primary);
+}
+
+.doc_action_btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.doc_action_danger:hover {
+  color: var(--danger-text-strong);
+  border-color: var(--danger-border-strong);
+  background: var(--danger-soft);
+}

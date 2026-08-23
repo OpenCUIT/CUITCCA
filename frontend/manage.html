@@ -84,6 +84,7 @@
                             <button class="tab_btn active" data-tab="tab-upload">文件上传</button>
                             <button class="tab_btn" data-tab="tab-text">文本录入</button>
                             <button class="tab_btn" data-tab="tab-qa">QA 生成导入</button>
+                            <button class="tab_btn" data-tab="tab-docs">文档列表</button>
                         </div>
 
                         <!-- Tab 1: 文件拖拽上传 -->
@@ -123,6 +124,17 @@
                                 <textarea id="qa-custom-prompt" rows="3" placeholder="默认会将文件内容切割为多块，并为每块生成对应的标准问答对…"></textarea>
                             </div>
                             <button class="btn-submit btn-submit-qa">生成 QA 并导入</button>
+                        </div>
+
+                        <!-- Tab 4: 文档级列表（按 doc_id 聚合，支持删除/重新索引） -->
+                        <div id="tab-docs" class="tab_content">
+                            <div class="doc_toolbar">
+                                <span id="doc-count" class="doc_count"></span>
+                                <button class="btn" type="button" id="doc-refresh" title="重新拉取当前索引的文档列表">刷新</button>
+                            </div>
+                            <div id="doc-list" class="doc_list">
+                                <div class="doc_empty_hint">选择或载入索引以查看文档列表</div>
+                            </div>
                         </div>
                     </section>
                 </div>

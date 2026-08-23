@@ -17,6 +17,7 @@ import {
 } from "./manage/indexPanel";
 import { bindSummaryInput } from "./manage/summary";
 import { initDragZone, submitDirectText, submitQAGeneration } from "./manage/uploadPanel";
+import { loadIndexDocuments } from "./manage/documentsPanel";
 import {
     bindNodeSearch,
     changePageSize,
@@ -37,6 +38,9 @@ function switchTab(tabId: string) {
 
     const content = document.getElementById(tabId);
     if (content) content.classList.add('active');
+
+    // 文档列表 tab 激活时刷新一次（其它面板的操作可能已改变文档集合）
+    if (tabId === 'tab-docs') loadIndexDocuments();
 }
 
 // 模块脚本是 deferred 的，执行到这里时 DOM 已解析完成，但DOMContentLoaded
@@ -70,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('page-jump-input')?.addEventListener('keydown', (e: Event) => {
     if ((e as KeyboardEvent).key === 'Enter') jumpToPageFromInput();
   });
+  document.getElementById('doc-refresh')?.addEventListener('click', () => loadIndexDocuments());
   document.getElementById('page-size-select')?.addEventListener('change', (e: Event) => {
     const val = parseInt((e.target as HTMLSelectElement).value, 10);
     if (Number.isFinite(val) && val > 0) changePageSize(val);

@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import handlers.index_crud as index_crud
 from llama_index.core.embeddings import MockEmbedding
@@ -272,117 +272,6 @@ class SaveSummaryTest(unittest.TestCase):
         index_crud._save_summary(index)
 
         self._fake_collection.modify.assert_called_once_with(metadata={"summary": ""})
-
-
-class ConvertIndexToFileTest(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        self.fake_index = FakeIndex(index_id="convert_test")
-        self.fake_node = MagicMock()
-        self.fake_node.text = "node text content"
-        self.fake_node.get_content = MagicMock(return_value="node text content")
-        self.fake_index.docstore = MagicMock()
-        self.fake_index.docstore.docs = {"node1": self.fake_node}
-
-    @patch("aiofiles.open")
-    @patch("handlers.index_crud.get_index_by_name")
-    @patch("handlers.index_crud.os.makedirs")
-    @patch("handlers.index_crud.os.path.exists", return_value=True)
-    async def test_convert_index_to_file_writes_content(
-        self, mock_exists, mock_makedirs, mock_get_index, mock_aiofiles_open
-    ):
-        mock_get_index.return_value = self.fake_index
-        mock_file = AsyncMock()
-        mock_cm = MagicMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=mock_file)
-        mock_cm.__aexit__ = AsyncMock(return_value=None)
-        mock_aiofiles_open.return_value = mock_cm
-
-        await index_crud.convert_index_to_file("convert_test", "output.txt")
-
-        mock_get_index.assert_called_once_with("convert_test")
-        mock_aiofiles_open.assert_called_once()
-        mock_file.write.assert_called_once_with("node text content")
-
-    @patch("aiofiles.open")
-    @patch("handlers.index_crud.get_index_by_name")
-    @patch("handlers.index_crud.os.makedirs")
-    @patch("handlers.index_crud.os.path.exists", return_value=True)
-    async def test_convert_index_to_file_skips_when_index_not_found(
-        self, mock_exists, mock_makedirs, mock_get_index, mock_aiofiles_open
-    ):
-        mock_get_index.return_value = None
-
-        await index_crud.convert_index_to_file("nonexistent", "output.txt")
-
-        mock_aiofiles_open.assert_not_called()
-
-
-class CitfTest(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        self.fake_index = FakeIndex(index_id="citf_test")
-        self.fake_node = MagicMock()
-        self.fake_node.text = "citf node text"
-        self.fake_node.get_content = MagicMock(return_value="citf node text")
-        self.fake_index.docstore = MagicMock()
-        self.fake_index.docstore.docs = {"n1": self.fake_node}
-
-    @patch("aiofiles.open")
-    @patch("handlers.index_crud.os.makedirs")
-    @patch("handlers.index_crud.os.path.exists", return_value=True)
-    async def test_citf_writes_content(self, mock_exists, mock_makedirs, mock_aiofiles_open):
-        mock_file = AsyncMock()
-        mock_cm = MagicMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=mock_file)
-        mock_cm.__aexit__ = AsyncMock(return_value=None)
-        mock_aiofiles_open.return_value = mock_cm
-
-        await index_crud.citf(self.fake_index, "citf_output.txt")
-
-        mock_aiofiles_open.assert_called_once()
-        mock_file.write.assert_called_once_with("citf node text")
-
-    @patch("aiofiles.open")
-    @patch("handlers.index_crud.os.makedirs")
-    @patch("handlers.index_crud.os.path.exists", return_value=False)
-    async def test_citf_creates_directory_when_missing(
-        self, mock_exists, mock_makedirs, mock_aiofiles_open
-    ):
-        mock_file = AsyncMock()
-        mock_cm = MagicMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=mock_file)
-        mock_cm.__aexit__ = AsyncMock(return_value=None)
-        mock_aiofiles_open.return_value = mock_cm
-
-        await index_crud.citf(self.fake_index, "citf_output.txt")
-
-        mock_makedirs.assert_called_once()
-
-
-class GetDocsFromIndexTest(unittest.TestCase):
-    def setUp(self):
-        self.fake_index = FakeIndex(index_id="get_docs_test")
-        self.fake_index.docstore = MagicMock()
-
-    def test_returns_nodes_when_ref_doc_found(self):
-        fake_ref_doc = MagicMock()
-        fake_ref_doc.node_ids = ["node1", "node2"]
-        self.fake_index.docstore.get_ref_doc_info.return_value = fake_ref_doc
-        fake_nodes = [MagicMock(), MagicMock()]
-        self.fake_index.docstore.get_nodes.return_value = fake_nodes
-
-        result = index_crud.get_docs_from_index(self.fake_index, "doc_123")
-
-        self.assertEqual(result, fake_nodes)
-        self.fake_index.docstore.get_ref_doc_info.assert_called_once_with("doc_123")
-        self.fake_index.docstore.get_nodes.assert_called_once_with(["node1", "node2"])
-
-    def test_returns_empty_list_when_ref_doc_not_found(self):
-        self.fake_index.docstore.get_ref_doc_info.return_value = None
-
-        result = index_crud.get_docs_from_index(self.fake_index, "nonexistent")
-
-        self.assertEqual(result, [])
-        self.fake_index.docstore.get_nodes.assert_not_called()
 
 
 class DeleteIndexTest(unittest.TestCase):

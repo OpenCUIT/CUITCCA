@@ -46,14 +46,15 @@ class MainWorkflowHttpTest(unittest.TestCase):
         mock_insert.assert_called_once()
 
     @patch('router.index.saveIndex')
-    def test_insert_doc_workflow(self, mock_save):
+    @patch('router.index._ingest_text_and_persist')
+    def test_insert_doc_workflow(self, mock_ingest_text, mock_save):
         response = self.client.post(
             "/index/test_index/insertdoc",
             data={"text": "hello doc text", "doc_id": "doc123"}
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
-        mock_save.assert_called_once_with(self.fake_index)
+        mock_ingest_text.assert_called_once()
 
     @patch('handlers.qa_workflow.QAWorkflow')
     def test_query_workflow(self, mock_workflow_cls):

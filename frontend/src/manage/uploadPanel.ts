@@ -5,6 +5,7 @@ import { showToast } from "../utils/toast";
 import { escapeHtml } from "../utils/dom";
 import { hideLoading, showLoading } from "../utils/loading";
 import { loadIndexNodes } from "./nodesPanel";
+import { loadIndexDocuments } from "./documentsPanel";
 import { baseURL, manageState } from "./state";
 
 // 拖拽区域监听
@@ -78,6 +79,7 @@ export async function uploadFiles(files: FileList) {
                 </div>`;
             // 等待节点加载完成
             await loadIndexNodes(manageState.currentActiveIndex!);
+            await loadIndexDocuments();
             showToast(`成功解析并插入 ${files.length} 个文件`, 'success');
             progressList.innerHTML = `<p class="upload_progress_msg upload_progress_msg--success">✓ 全部文件上传成功！</p>`;
         } else {
@@ -127,6 +129,8 @@ export async function submitDirectText() {
             docIdInput.value = '';
             docTextInput.value = '';
             loadIndexNodes(manageState.currentActiveIndex);
+        loadIndexDocuments();
+            loadIndexDocuments();
         } else {
             showToast('文档插入失败', 'error');
         }
@@ -173,6 +177,8 @@ export async function submitQAGeneration() {
             showToast('大模型 QA 数据生成并索引成功', 'success');
             promptInput.value = '';
             loadIndexNodes(manageState.currentActiveIndex);
+        loadIndexDocuments();
+            loadIndexDocuments();
         } else {
             showToast(data.message || 'QA 生成失败', 'error');
         }

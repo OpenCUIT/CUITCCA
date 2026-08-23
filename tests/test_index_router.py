@@ -449,8 +449,9 @@ class TestIndexRouter(unittest.TestCase):
         mock_saveIndex.assert_called_once_with(self.fake_index)
 
     # --- POST /index/{name}/insertdoc ---
+    @patch('router.index._ingest_text_and_persist')
     def test_insert_doc_with_doc_id(
-        self,
+        self, mock_ingest_text,
         mock_summary_index, mock_saveIndex, mock_deleteDocById,
         mock_deleteNodeById, mock_updateNodeById, mock_get_all_docs,
         mock_insert_into_index, mock_delete_collection, mock_loadAllIndexes,
@@ -463,11 +464,10 @@ class TestIndexRouter(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
-        self.fake_index.insert_nodes.assert_called_once()
-        mock_saveIndex.assert_called_once_with(self.fake_index)
 
+    @patch('router.index._ingest_text_and_persist')
     def test_insert_doc_without_doc_id(
-        self,
+        self, mock_ingest_text,
         mock_summary_index, mock_saveIndex, mock_deleteDocById,
         mock_deleteNodeById, mock_updateNodeById, mock_get_all_docs,
         mock_insert_into_index, mock_delete_collection, mock_loadAllIndexes,
@@ -496,21 +496,21 @@ class TestIndexRouter(unittest.TestCase):
         mock_saveIndex.assert_called_once_with(self.fake_index)
 
     # --- POST /index/{name}/getfile ---
-    @patch('router.index.citf')
+    @patch('router.index.export_index_to_file')
     def test_get_file(
-        self, mock_citf,
+        self, mock_export,
         mock_summary_index, mock_saveIndex, mock_deleteDocById,
         mock_deleteNodeById, mock_updateNodeById, mock_get_all_docs,
         mock_insert_into_index, mock_delete_collection, mock_loadAllIndexes,
         mock_createIndex, mock_list_index_names,
     ):
-        mock_citf.return_value = None
+        mock_export.return_value = "/tmp/test_index.txt"
 
         response = self.client.post("/index/test_index/getfile")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"status": "ok"})
-        mock_citf.assert_called_once_with(self.fake_index, "test_index.txt")
+        self.assertEqual(response.json(), {"status": "ok", "path": "/tmp/test_index.txt"})
+        mock_export.assert_called_once_with(self.fake_index, "test_index.txt")
 
     # --- POST /index/{name}/evaluator ---
     @patch('router.index.build_llm')

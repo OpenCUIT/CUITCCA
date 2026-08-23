@@ -4,12 +4,14 @@ import { apiFetch } from "../utils/api";
 import { showToast } from "../utils/toast";
 import { hideLoading, showLoading } from "../utils/loading";
 import { loadIndexNodes, resetNodePanelForIndexSwitch } from "./nodesPanel";
+import { loadIndexDocuments, resetDocumentsPanelForIndexSwitch } from "./documentsPanel";
 import { loadIndexSummary, updateSummaryDisplay } from "./summary";
 import { LAST_INDEX_KEY, baseURL, clearPendingEdits, hasUnsavedNodeEdits, manageState } from "./state";
 
 export async function loadIndexes() {
     clearPendingEdits();
     resetNodePanelForIndexSwitch();
+    resetDocumentsPanelForIndexSwitch();
     try {
         const response = await apiFetch(`${baseURL}/list`);
         const data = await response.json();
@@ -54,6 +56,7 @@ export async function loadIndexes() {
         // 加载摘要和节点
         loadIndexSummary(manageState.currentActiveIndex!);
         loadIndexNodes(manageState.currentActiveIndex!);
+        loadIndexDocuments();
     } catch (error) {
         showToast('获取索引列表失败', 'error');
     }
@@ -76,11 +79,13 @@ export function bindIndexSelect() {
 
         clearPendingEdits();
         resetNodePanelForIndexSwitch();
+    resetDocumentsPanelForIndexSwitch();
         manageState.currentActiveIndex = newValue;
         if (manageState.currentActiveIndex) {
             localStorage.setItem(LAST_INDEX_KEY, manageState.currentActiveIndex);
             loadIndexSummary(manageState.currentActiveIndex);
             loadIndexNodes(manageState.currentActiveIndex);
+            loadIndexDocuments();
         } else {
             updateSummaryDisplay('未选中任何活跃索引');
             const viewport = document.getElementById('node-list-viewport') || document.getElementById('panel-right-container');

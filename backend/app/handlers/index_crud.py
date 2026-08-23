@@ -225,6 +225,133 @@ def saveIndex(index: VectorStoreIndex):
     _save_summary(index)
 
 
+def list_documents(index: VectorStoreIndex) -> list[dict]:
+    """文档级视图：把索引里所有 chunk 按 ref_doc_id（= 摄取时的内容 sha256）
+    聚合成"一份文档"一行——管理页文档列表（文件名/类型/chunk 数/操作）的数据源。
+
+    直接读 Chroma collection（跟 get_all_docs 同一数据源），不走
+    ``index.docstore``——索引是 ``from_vector_store`` 构造的，那个 docstore
+    是空内存 store。
+    """
+    try:
+        client = _get_client()
+        collection = client.get_collection(index.index_id)
+        data = collection.get(include=["metadatas", "documents"])
+        agg: dict[str, dict] = {}
+        for meta, text in zip(
+            data.get("metadatas") or [], data.get("documents") or [], strict=False
+        ):
+            meta = meta or {}
+            doc_id = meta.get("ref_doc_id") or "(未知 doc_id)"
+            entry = agg.setdefault(
+                doc_id,
+                {
+                    "doc_id": doc_id,
+                    "file_name": meta.get("file_name") or "",
+                    "source_url": meta.get("source_url") or "",
+                    "chunk_count": 0,
+                    "total_chars": 0,
+                },
+            )
+            entry["chunk_count"] += 1
+            entry["total_chars"] += len(text or "")
+        return sorted(agg.values(), key=lambda e: (-e["chunk_count"], e["doc_id"]))
+    except Exception as e:
+        logging.error(f"Error aggregating documents from ChromaDB: {e}")
+        return []
+
+
+def _ingest_text_and_persist(index: VectorStoreIndex, text: str, doc_id: str | None) -> None:
+    """文本录入的摄取+落盘（同步，供 asyncio.to_thread 卸载）。
+
+    原实现直接 ``index.insert_nodes([Document(text)])``，绕开了
+    TableAwareSentenceSplitter 分块、噪声过滤和 docstore UPSERTS 去重——
+    同一段文本录入两次就堆两份完全重复的 chunk。改成跟文件上传
+    （``_ingest_and_persist``）/ QA 导入（``_embed_qa_and_persist``）同一条
+    IngestionPipeline 链路；doc_id 用调用方显式指定的值（没有则取内容
+    sha256），保证"同内容重复录入"被判重跳过。
+    """
+    from handlers.ingestion_pipeline import build_pipeline, content_hash
+    from handlers.vector_store import load_or_create_docstore, persist_docstore
+
+    effective_id = doc_id or content_hash(text)
+    doc = Document(
+        text=text,
+        id_=effective_id,
+        metadata={"file_name": doc_id or f"文本录入-{effective_id[:8]}"},
+    )
+    docstore = load_or_create_docstore(index.index_id)
+    pipeline = build_pipeline(vector_store=index.vector_store, docstore=docstore)
+    pipeline.run(documents=[doc])
+    persist_docstore(index.index_id, docstore)
+
+
+def _reindex_document_sync(index: VectorStoreIndex, file_name: str) -> dict:
+    """按文件名重新索引一份已入库文档（同步，供 asyncio.to_thread 卸载）。
+
+    "重新索引"必须先删旧数据，否则摄取管道的 UPSERTS 判重会认为"内容没变"
+    直接跳过，重索引变成空操作。删两层：
+
+    1. Chroma 里该 file_name 的全部 chunk；
+    2. docstore 里对应的 doc_id 记录（去重记忆），让管道把它当新文档重新
+       分块 + 嵌入。
+
+    之后从 ``SAVE_PATH/{index_id}/{file_name}``（上传时落的永久副本）走
+    标准摄取管道。源文件不在（比如爬虫入库的索引、被手动清理过）时报错，
+    不能静默装作重建成功。
+    """
+    from handlers.vector_store import load_or_create_docstore, persist_docstore
+
+    saved_path = os.path.join(load_env.SAVE_PATH, index.index_id, file_name)
+    if not os.path.exists(saved_path):
+        raise FileNotFoundError(
+            f"找不到源文件 {file_name}（仅上传入库的文档支持重新索引）"
+        )
+
+    client = _get_client()
+    collection = client.get_collection(index.index_id)
+    res = collection.get(where={"file_name": file_name}, include=["metadatas"])
+    old_ids = res.get("ids") or []
+    old_doc_ids = {
+        (m or {}).get("ref_doc_id")
+        for m in (res.get("metadatas") or [])
+        if (m or {}).get("ref_doc_id")
+    }
+    if old_ids:
+        collection.delete(ids=old_ids)
+
+    docstore = load_or_create_docstore(index.index_id)
+    for doc_id in old_doc_ids:
+        try:
+            docstore.delete(doc_id)
+        except Exception:
+            pass
+    persist_docstore(index.index_id, docstore)
+
+    _ingest_and_persist(index, saved_path)
+    return {"file_name": file_name, "removed_chunks": len(old_ids)}
+
+
+def export_index_to_file(index: VectorStoreIndex, name: str) -> str:
+    """把索引全部 chunk 正文导出成文本文件，返回落盘路径。
+
+    原实现（citf）遍历 ``index.docstore.docs``，但索引是
+    ``from_vector_store`` 构造的，docstore 是空内存 store——导出文件恒为空。
+    改为读 Chroma collection（跟 get_all_docs 同一数据源）。
+    """
+    os.makedirs(load_env.FILE_PATH, exist_ok=True)
+    path = os.path.join(load_env.FILE_PATH, name)
+    docs = get_all_docs(index)
+    lines = [
+        (d["text"] or "").strip().replace("\n", " ").replace("\r", "")
+        for d in docs
+        if (d["text"] or "").strip()
+    ]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    return path
+
+
 def _save_summary(index: VectorStoreIndex):
     collection = get_or_create_collection(index.index_id)
     summary_val = getattr(index, 'summary', '')
@@ -248,43 +375,6 @@ async def get_index_by_name_async(index_name: str) -> VectorStoreIndex | None:
     return None
 
 
-async def convert_index_to_file(index_name: str, file_name: str):
-    import aiofiles
-    path = os.path.join(load_env.FILE_PATH, file_name)
-    if not os.path.exists(load_env.FILE_PATH):
-        os.makedirs(load_env.FILE_PATH)
-
-    index = get_index_by_name(index_name)
-    if index is None:
-        return
-
-    text_list = []
-    for doc in index.docstore.docs.values():
-        node_text = getattr(doc, 'text', None) or doc.get_content()
-        if node_text:
-            node_text = node_text.strip().replace('\n', '').replace('\r', '')
-            text_list.append(node_text)
-
-    async with aiofiles.open(path, 'w', encoding='utf-8') as f:
-        await f.write('\n'.join(text_list))
-
-
-async def citf(index: VectorStoreIndex, name: str):
-    import aiofiles
-    path = os.path.join(load_env.FILE_PATH, name)
-    if not os.path.exists(load_env.FILE_PATH):
-        os.makedirs(load_env.FILE_PATH)
-
-    text_list = []
-    for node_id, node_data in index.docstore.docs.items():
-        node_text = getattr(node_data, 'text', None) or node_data.get_content()
-        node_text = node_text.strip().replace('\n', '').replace('\r', '')
-        text_list.append(node_text)
-
-    async with aiofiles.open(path, 'w', encoding='utf-8') as f:
-        await f.write('\n'.join(text_list))
-
-
 def format_source_nodes_list(node_with_score_list):
     formatted_nodes = []
     for node_with_score in node_with_score_list:
@@ -298,11 +388,3 @@ def format_source_nodes_list(node_with_score_list):
 
 def delete_index(index_name: str):
     delete_collection(index_name)
-
-
-def get_docs_from_index(index: VectorStoreIndex, doc_id: str):
-    docs_list = index.docstore.get_ref_doc_info(doc_id)
-    if docs_list is None:
-        return []
-    docs = index.docstore.get_nodes(docs_list.node_ids)
-    return docs
