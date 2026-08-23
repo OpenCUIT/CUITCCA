@@ -34,7 +34,7 @@ inputEl.addEventListener('keydown', function (event: KeyboardEvent) {
 const changeborderDiv = document.getElementById('changeborder_div') as HTMLElement;
 inputEl.addEventListener('focus', () => {
     // 切换 .is-focused 类而不是写死内联色值：焦点描边用 CSS 的 var(--primary)，
-    // 暗色模式下 --primary 是浅蓝，写死的深蓝边框会看不见。
+    // 边框颜色统一走 --primary 令牌，不写死色值。
     changeborderDiv.classList.add('is-focused');
 });
 inputEl.addEventListener('blur', () => {

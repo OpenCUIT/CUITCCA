@@ -57,7 +57,6 @@
 - 🧰 **结构化查询工具** — Agent 新增 `search_announcements` / `search_campus_services`：模型按问题形态在"语义检索"与"结构化查询"两类工具间自主选择（"最近有什么通知"→通知工具，"校车几点"→服务工具）
 - 🛡️ **安全防护** — 可选 API Key 认证、速率限制、路径穿越防护、文件白名单、CORS 白名单
 - 🔭 **可观测性** — OpenTelemetry + OpenInference，span 树导出，环境变量门控
-- 🌙 **暗色模式** — 跟随 prefers-color-scheme，覆盖全部页面
 - 💾 **对话持久化** — 浏览器 localStorage，刷新自动恢复
 
 ---

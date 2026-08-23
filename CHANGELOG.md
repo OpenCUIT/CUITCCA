@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `asyncio.to_thread` 卸载，不再阻塞事件循环。
 
 ### Removed
+- 暗色模式与侧栏主题切换按钮：`prefers-color-scheme` 三段暗色令牌覆盖、
+  `html[data-theme="dark"]` 手动覆盖规则与 localStorage 记忆全部删除，
+  只保留亮色一套（产品面收敛，样式表少维护一半分支）。
 - 死代码清理：`backend/app/exceptions/` 整包、`utils/logger.py` 的 `audit_logger`、
   `index_crud` 中无调用方的 `convert_index_to_file` / `citf` / `get_docs_from_index`。
 

@@ -2,7 +2,7 @@
    成信大校园助手 · 前端样式系统
    --------------------------------------------------------------------------
    设计原则：
-   - 单一事实来源的设计令牌（:root + prefers-color-scheme 暗色覆盖），所有
+   - 单一事实来源的设计令牌（:root），所有
      组件只消费 token，杜绝硬编码色值导致的暗色模式漏网。
    - 克制的层级：阴影、圆角、渐变都走统一标度，避免"每个组件各想一套"。
    - 交互即反馈：hover 轻抬升、active 按压缩放、focus 统一品牌色光晕，
@@ -100,73 +100,6 @@
      加上 .chat_talk_container 自己的 800px 上限和 margin-right:10px，导致
      输入框比消息列窄、还整体左偏（实测右缘相差 55px）。 */
   --chat-col-max: 900px;
-}
-
-/* ===== 设计令牌（暗色） ===== */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --primary: rgb(101, 163, 218);
-    --primary-strong: rgb(141, 190, 234);
-    --primary-light: rgb(126, 182, 229);
-    --primary-soft: rgba(101, 163, 218, 0.16);
-    --primary-softer: rgba(101, 163, 218, 0.08);
-    /* 暗色下 --accent-grad 还被用作用户气泡 .content_man 的背景，浅端原来
-       只有 2.69:1——加深两端，白字达标。 */
-    --accent-grad: linear-gradient(135deg, #265079 0%, #3a72aa 100%);
-    --accent-grad-soft: linear-gradient(135deg, rgba(101, 163, 218, 0.12) 0%, rgba(126, 182, 229, 0.08) 100%);
-    /* 暗色下按钮改用近黑文字压在鲜亮填充色上（暗色 UI 的通行做法），比继续
-       加深填充色更保留品牌鲜艳度。 */
-    --btn-fg: #0d0f13;
-    --success: #3fb570;
-    --success-light: #52c98a;
-    --danger: #f26d70;
-    --danger-light: #f88a8d;
-    --warning: #f5a623;
-    --info: #45a4ff;
-    /* 暗色下 --success/--danger 本身已经够亮，直接复用做渐变、配 --btn-fg
-       近黑字即可达标（7.36:1 / 6.57:1），不需要像浅色那样另配色值。 */
-    --success-grad: linear-gradient(135deg, var(--success) 0%, var(--success-light) 100%);
-    --danger-grad: linear-gradient(135deg, var(--danger) 0%, var(--danger-light) 100%);
-    /* 暗色下 --danger/--danger-light 本身已经够亮，直接复用做删除按钮文字色
-       即可达标（实测 5.53:1 / 6.93:1），不需要像浅色那样另配色值。 */
-    --danger-text: var(--danger);
-    --danger-text-strong: var(--danger-light);
-    --danger-soft: rgba(242, 109, 112, 0.16);
-    --danger-border-strong: rgba(242, 109, 112, 0.4);
-
-    --text-primary: #e6e9ef;
-    --text-secondary: #b3bac6;
-    --text-tertiary: #828b99;
-
-    --bg-gradient-start: #14161b;
-    --bg-gradient-end: #0d0f13;
-    --surface: #1e2126;
-    --surface-alt: #262a31;
-    --surface-sidebar: #191c21;
-    --surface-sidebar-head: #20242b;
-    --border-subtle: rgba(126, 182, 229, 0.14);
-    --border-strong: rgba(126, 182, 229, 0.4);
-    --border-faint: rgba(255, 255, 255, 0.1);
-    --code-bg: rgba(255, 255, 255, 0.08);
-    --table-head-bg: rgba(126, 182, 229, 0.14);
-    --table-stripe: rgba(255, 255, 255, 0.03);
-
-    --bubble-bot: #24282f;
-    --glass-bg: rgba(30, 33, 38, 0.85);
-    --scroll-thumb: rgba(126, 182, 229, 0.3);
-    --scroll-thumb-hover: rgba(126, 182, 229, 0.5);
-    --focus-ring: 0 0 0 4px rgba(101, 163, 218, 0.18);
-    --overlay-bg: rgba(13, 15, 19, 0.6);
-  }
-
-  /* 暗色下背景装饰光晕收暗，避免抢内容注意力 */
-  body::before { opacity: 0.28; }
-  body::after { opacity: 0.22; }
-
-  /* 侧栏功能卡（.func）的高亮是 sidebar.ts 写死的内联深蓝色（测试契约要求
-     内联 style 含 rgb(25, 84, 142)），暗色下深蓝图标几乎不可见——这里用
-     主题浅蓝以 !important 覆盖内联色值（只动颜色，不动布局与阴影）。 */
-  .func-active > div { color: var(--primary) !important; }
 }
 
 /* ===== 基础重置 ===== */
@@ -536,41 +469,6 @@ html { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; 
     margin-right: auto;
 }
 .apikey_btn--danger:hover { background: var(--danger); color: white; }
-
-/* 手动主题切换: data-theme="dark" 覆盖 prefers-color-scheme */
-html[data-theme="dark"] {
-    --primary: rgb(94, 156, 211);
-    --primary-light: rgb(120, 176, 224);
-    --primary-bg: rgba(94, 156, 211, 0.15);
-    --text-primary: #e4e6eb;
-    --text-secondary: #b0b3b8;
-    --text-tertiary: #8a8d91;
-    --bg-gradient-start: #16181c;
-    --bg-gradient-end: #0e0f11;
-    --surface: #1f2125;
-    --surface-alt: #2a2d32;
-}
-html[data-theme="dark"] body, html[data-theme="dark"] html {
-    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
-}
-html[data-theme="dark"] #side_left,
-html[data-theme="dark"] .headline,
-html[data-theme="dark"] .panel_right,
-html[data-theme="dark"] .node_card,
-html[data-theme="dark"] .glass_card,
-html[data-theme="dark"] .guide_card { background-color: var(--surface) !important; }
-html[data-theme="dark"] .foot_fix { background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%); }
-html[data-theme="dark"] .chat_talk_container,
-html[data-theme="dark"] .clear,
-html[data-theme="dark"] .chat_talk_stop { background-color: var(--surface) !important; color: var(--text-primary) !important; }
-html[data-theme="dark"] textarea,
-html[data-theme="dark"] .node_editor,
-html[data-theme="dark"] .summary_textarea,
-html[data-theme="dark"] .form_group input,
-html[data-theme="dark"] .form_group textarea,
-html[data-theme="dark"] .index_select,
-html[data-theme="dark"] .new_index_input,
-html[data-theme="dark"] .node_search_input { background-color: var(--surface); color: var(--text-primary); }
 
 /* ===== 右侧工作区 ===== */
 .side_right {
@@ -1648,7 +1546,7 @@ input:focus, select:focus, textarea:focus {
 /* — Design tokens, scoped to .console-page —
    曾经是一套独立的"编辑纸感"配色（米黄纸底 + IBM Plex + 藏蓝），导致管理台
    和全站其余页面（蓝色玻璃渐变风）完全像两个产品。现在全部别名到全局主题
-   token：跟随 :root 与 [data-theme="dark"] 自动切换，观感与主页/反馈页一致。
+   token：统一走 :root，观感与主页/反馈页一致。
    保留 --ed-* 变量名是为了不动 122 处引用这些 token 的既有规则。 */
 .console-page {
   --ed-paper: var(--glass-bg);
@@ -2729,24 +2627,6 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* — Dark mode for console — */
-@media (prefers-color-scheme: dark) {
-  .console-page {
-    --ed-paper: #161310;
-    --ed-paper-alt: #1c1815;
-    --ed-surface: #1f1b16;
-    --ed-ink: #e8e0d0;
-    --ed-ink-2: #a89e8a;
-    --ed-ink-3: #6b6358;
-    --ed-rule: #2e2922;
-    --ed-rule-2: #3d362c;
-    --ed-accent: #6b94c4;
-    --ed-accent-2: #82a8d4;
-    --ed-accent-soft: rgba(107, 148, 196, 0.1);
-    --ed-success: #7ab87a;
-    --ed-danger: #c47878;
-    --ed-warning: #c4a878;
-  }
-}
 
 /* — Responsive — */
 @media (max-width: 1024px) {
@@ -3317,28 +3197,6 @@ input:focus, select:focus, textarea:focus {
 }
 .hljs-meta, .hljs-type, .hljs-built_in, .hljs-params {
   color: var(--hl-meta);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --hl-comment: #8b949e;
-    --hl-keyword: #ff7b72;
-    --hl-string: #a5d6ff;
-    --hl-number: #79c0ff;
-    --hl-title: #d2a8ff;
-    --hl-attr: #7ee787;
-    --hl-meta: #ffa657;
-  }
-}
-
-html[data-theme='dark'] {
-  --hl-comment: #8b949e;
-  --hl-keyword: #ff7b72;
-  --hl-string: #a5d6ff;
-  --hl-number: #79c0ff;
-  --hl-title: #d2a8ff;
-  --hl-attr: #7ee787;
-  --hl-meta: #ffa657;
 }
 
 /* ---- 代码块复制按钮 ---- */

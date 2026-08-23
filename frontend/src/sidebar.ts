@@ -121,7 +121,6 @@ import { getApiKey, setApiKey, clearApiKey, onUnauthorized } from './utils/api';
             ${rows}
         </div>
         <div class="side_bottom">
-            <button class="side_action_btn" id="theme-toggle" type="button" title="切换深色 / 浅色模式">🌙 主题</button>
             <button class="side_action_btn" id="api-key-btn" type="button" title="设置后端访问密钥">${hasKey ? '🔑 已配置密钥' : '🔑 设置访问密钥'}</button>
         </div>
         <div class="side_footer">成信大校园助手 · 基于校园知识库</div>
@@ -139,29 +138,6 @@ import { getApiKey, setApiKey, clearApiKey, onUnauthorized } from './utils/api';
   const backdrop = document.createElement('div');
   backdrop.className = 'sidebar_backdrop';
   document.body.appendChild(backdrop);
-
-  // ===== 主题切换 (localStorage 记忆, 覆盖 prefers-color-scheme) =====
-  const THEME_KEY = 'cuitcca_theme';
-  function applyTheme(theme: 'light' | 'dark') {
-    // 用 data-theme 显式覆盖 prefers-color-scheme (light 也强制设置, 避免系统暗色覆盖)
-    document.documentElement.setAttribute('data-theme', theme);
-  }
-  // 初始应用 (优先 localStorage, 否则跟随系统)
-  const savedTheme = localStorage.getItem(THEME_KEY) as 'light' | 'dark' | null;
-  if (savedTheme) {
-    applyTheme(savedTheme);
-  }
-  const themeBtn = document.getElementById('theme-toggle');
-  if (themeBtn) {
-    themeBtn.addEventListener('click', () => {
-      const current = document.documentElement.getAttribute('data-theme');
-      const isDark = current === 'dark' ||
-        (!current && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      const next: 'light' | 'dark' = isDark ? 'light' : 'dark';
-      applyTheme(next);
-      localStorage.setItem(THEME_KEY, next);
-    });
-  }
 
   // ===== API Key 设置弹窗 =====
   function promptApiKey(title: string, message: string) {
