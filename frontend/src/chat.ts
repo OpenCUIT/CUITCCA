@@ -7,7 +7,8 @@
 //   conversations.ts  多会话存储（localStorage）
 //   history.ts        当前会话的持久化适配层与回放
 //   conversation.ts   发送主流程、NDJSON 流式解析、工具轨迹、建议、反馈
-//   citations.ts      参考来源列表
+//   citations.ts      引用来源：行内角标 + 悬浮预览 + 完整列表
+//   dropUpload.ts     拖拽文件进对话（走管理页同一条摄取管道）
 //   sessionsBar.ts    侧栏会话列表（新建/搜索/切换/重命名/删除）
 
 import './chat/inputBar';
@@ -16,6 +17,7 @@ import { clearHistory, replayHistory } from './chat/history';
 import { getActiveConversation } from './chat/conversations';
 import { initSessionsBar } from './chat/sessionsBar';
 import { initScrollFollow } from './chat/dom';
+import { initDropUpload } from './chat/dropUpload';
 import { apiFetch } from './utils/api';
 
 function initStarter() {
@@ -85,4 +87,5 @@ document.addEventListener('DOMContentLoaded', () => {
   initStarter();
   initSessionsBar({ rebuildView });
   initScrollFollow();
+  initDropUpload();
 });

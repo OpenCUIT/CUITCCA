@@ -6,7 +6,9 @@ import { loadCitations } from './citations';
 import {
     appendBotBubble,
     appendUserBubble,
+    applyLongAnswerCollapse,
     enhanceCodeBlocks,
+    enhanceTables,
     renderMarkdown,
     scrollToBottom,
     showThinkingIndicator,
@@ -479,6 +481,10 @@ async function streamAsk(
     const flushRender = () => {
         if (pendingText !== null) {
             answerEl.innerHTML = renderMarkdown(pendingText);
+            // 流式光标：正在输出时在末尾闪一个方块（CSS ::after 画），让"还在
+            // 写"和"写完了"一眼可分——原来两者视觉上完全一样，用户只能靠停止
+            // 按钮还在不在来猜。
+            answerEl.classList.add('is-streaming');
             scrollToBottom();
             pendingText = null;
         }
@@ -669,11 +675,18 @@ async function streamAsk(
         if (!runFailed) {
             appendHistory('bot', fullText);
         }
+        // 定格后的一次性增强：表格包裹、超长折叠（代码高亮在 done 分支里已经
+        // 做过）。streaming 期间每帧都整段重绘 innerHTML，逐帧做这些既贵又会
+        // 因为半成品结构闪跳。
+        answerEl.classList.remove('is-streaming');
+        enhanceTables(answerEl);
+        applyLongAnswerCollapse(answerEl);
         await loadCitations(citationsEl);
     } catch (error) {
         cancelPendingRaf();
         if (error instanceof Error && error.name === 'AbortError') {
             flushRender();
+            answerEl.classList.remove('is-streaming');
             if (fullText) {
                 appendHistory('bot', fullText);
             } else {

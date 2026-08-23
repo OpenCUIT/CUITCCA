@@ -132,3 +132,41 @@ export function enhanceCodeBlocks(scope: HTMLElement) {
         }
     });
 }
+
+
+// ===== Markdown 表格：套一层可横向滚动的包裹 =====
+// 表格是知识库答案里的常客（收费标准、时间表、材料清单）。不包一层的话，宽表
+// 会把整个气泡撑破、连带把消息列撑出横向滚动条——整页跟着晃。包裹放在表格外
+// 面，滚动条只出现在表格自己身上。
+export function enhanceTables(scope: HTMLElement) {
+    scope.querySelectorAll('table').forEach((table) => {
+        const parent = table.parentElement;
+        if (parent && parent.classList.contains('table_scroll')) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'table_scroll';
+        table.replaceWith(wrap);
+        wrap.appendChild(table);
+    });
+}
+
+// ===== 超长回答折叠 =====
+// 一条几千字的回答会把前面几轮全顶出视口，用户想回看上一轮得滚很久。超过阈值
+// 就折叠并给「展开全文」——阈值取得比较宽（一屏多一点），短答案完全不受影响。
+const COLLAPSE_THRESHOLD_PX = 560;
+
+export function applyLongAnswerCollapse(answerEl: HTMLElement) {
+    if (answerEl.classList.contains('is-collapsible')) return;
+    if (answerEl.scrollHeight <= COLLAPSE_THRESHOLD_PX) return;
+
+    answerEl.classList.add('is-collapsible', 'is-collapsed');
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'answer_expand_btn';
+    toggle.textContent = '展开全文';
+    toggle.addEventListener('click', () => {
+        const collapsed = answerEl.classList.toggle('is-collapsed');
+        toggle.textContent = collapsed ? '展开全文' : '收起';
+        if (collapsed) answerEl.scrollIntoView({ block: 'nearest' });
+    });
+    answerEl.after(toggle);
+}

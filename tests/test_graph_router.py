@@ -170,6 +170,37 @@ class GraphRouterTest(unittest.TestCase):
         self.assertEqual(data["source_nodes"][0]["text"], "some text")
         self.assertEqual(data["source_nodes"][0]["score"], 0.95)
 
+    def test_query_sources_uses_conversation_scoped_key(self):
+        """多会话下取来源必须用 {session}#{conversation} 复合键。
+
+        ``/ask_stream`` 就是按这个键存来源的（前端每次请求都带 conversation_id）。
+        ``/query_sources`` 如果只按 cookie 取，取到的永远是空——"参考来源"面板
+        在多会话上线之后对所有会话都是空的，而且不报错，只是静默什么都不显示。
+        """
+        from llama_index.core.schema import NodeWithScore, TextNode
+        from router.graph_session import _last_query_response, effective_client_id
+
+        class _FakeRequest:
+            def __init__(self, session_id):
+                self.state = type("S", (), {"session_id": session_id})()
+                self.cookies = {"session_id": session_id}
+
+        # 先让客户端拿到一个 session cookie，再按"这个 cookie + 会话 id"存来源
+        self.client.post("/graph/create")
+        session_id = self.client.cookies.get("session_id")
+        key = effective_client_id(_FakeRequest(session_id), "conv-42")
+        _last_query_response.set(key, [
+            NodeWithScore(node=TextNode(text="来自 conv-42 的依据", id_="n42"), score=0.8),
+        ])
+
+        matched = self.client.post("/graph/query_sources", data={"conversation_id": "conv-42"})
+        self.assertEqual(matched.status_code, 200)
+        self.assertEqual(matched.json()["source_nodes"][0]["id"], "n42")
+
+        # 另一个会话 id 不该串到这条来源上
+        other = self.client.post("/graph/query_sources", data={"conversation_id": "conv-99"})
+        self.assertEqual(other.status_code, 400)
+
     def test_query_sources_no_prior_query(self):
         response = self.client.post("/graph/query_sources")
 

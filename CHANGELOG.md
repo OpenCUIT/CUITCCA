@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   搬运向量（不重新 embedding）按内容去重合并 collection；新增
   `EXCLUDED_COLLECTIONS` 环境变量控制哪些 collection 不进索引注册表。
 
+- 引用来源改行内角标：答案末尾一排 `[1][2][3]`，悬浮看片段（文件名 + 重排分数 +
+  正文），点开展开完整列表并高亮对应项。编号是来源清单的序号，不声称"第 2 句出自
+  [2]"——句子级归因要让模型自己吐标记，是另一件带评测的事。
+- Markdown 表格样式与横向滚动包裹；超长回答（>560px）折叠 + 「展开全文」；流式输出
+  时末尾显示闪烁光标，区分"还在写"和"写完了"。
+- 拖拽文件进对话即入知识库：走管理页同一条 `/index/{name}/uploadFiles` 摄取管道
+  （分块 + sha256 去重 + UPSERTS），完成后在对话里回一条系统提示。
 - 聊天界面向主流 chat 产品对齐：会话列表搬进侧栏（＋新对话、搜索、按今天/昨天/
   前 7 天/更早分组、重命名/删除，功能入口压成一行图标）；输入区改悬浮胶囊（自适应
   多行、发送与停止占同一位置互换）；消息 hover 操作条（复制/重新生成/编辑并重发，
@@ -58,6 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `index_crud` 中无调用方的 `convert_index_to_file` / `citf` / `get_docs_from_index`。
 
 ### Fixed
+- 多会话下「参考来源」面板恒为空：`/graph/query_sources` 只按 cookie 取来源，而
+  `/ask_stream` 是按 `{session}#{conversation}` 复合键存的（前端每次请求都带
+  conversation_id）。取不到不报错、只是什么都不显示，所以多会话上线后一直没被发现。
 - 语义缓存 collection 被当成知识库加载：`loadAllIndexes()` 把 Chroma 目录下
   的每个 collection 都塞进索引注册表，`qa_cache`（语义缓存）因此成为
   `RouterRetriever` / `LLMSingleSelector` 的候选之一——用户的校园问题可能被

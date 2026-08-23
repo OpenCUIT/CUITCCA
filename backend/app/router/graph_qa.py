@@ -11,7 +11,12 @@ from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.llms.types import ChatMessage, MessageRole
 from llama_index.core.schema import NodeWithScore, QueryBundle
 from models.response import QueryResponse, QuerySourcesResponse
-from router.graph_session import _chat_histories, _client_id, _last_query_response
+from router.graph_session import (
+    _chat_histories,
+    _client_id,
+    _last_query_response,
+    effective_client_id,
+)
 from starlette import status
 from starlette.responses import JSONResponse, StreamingResponse
 from utils.logger import customer_logger, error_logger, query_logger
@@ -113,8 +118,15 @@ async def query_graph_stream(request: Request, query: str = Form(max_length=5000
 
 
 @qa_app.post("/query_sources", response_model=QuerySourcesResponse)
-async def query_sources(request: Request):
-    source_nodes = _last_query_response.get(_client_id(request))
+async def query_sources(request: Request, conversation_id: str = Form(None, max_length=64)):
+    """取上一次问答的来源节点。
+
+    必须用 ``effective_client_id`` 而不是裸 ``_client_id``：``/ask_stream``
+    存来源时用的是 ``{session}#{conversation}`` 这个复合键（多会话隔离），
+    这里只按 cookie 取就永远取不到——前端每次请求都带 conversation_id，于是
+    多会话上线之后"参考来源"面板对所有会话都是空的。
+    """
+    source_nodes = _last_query_response.get(effective_client_id(request, conversation_id))
     if not source_nodes:
         return JSONResponse(content={"status": "detail", "message": "please query first"},
                             status_code=status.HTTP_400_BAD_REQUEST)

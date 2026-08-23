@@ -10,7 +10,15 @@ import {
     getActiveConversation,
     clearMessages as clearConvMessages,
 } from './conversations';
-import { appendBotBubble, appendUserBubble, enhanceCodeBlocks, renderMarkdown, scrollToBottom } from './dom';
+import {
+    appendBotBubble,
+    appendUserBubble,
+    applyLongAnswerCollapse,
+    enhanceCodeBlocks,
+    enhanceTables,
+    renderMarkdown,
+    scrollToBottom,
+} from './dom';
 import { decorateReplayedExchange } from './conversation';
 
 export function activeConversation(): Conversation {
@@ -43,6 +51,8 @@ export function replayHistory() {
         } else {
             const { answerEl, message } = appendBotBubble();
             answerEl.innerHTML = renderMarkdown(entry.content);
+            enhanceTables(answerEl);
+            applyLongAnswerCollapse(answerEl);
             decorateReplayedExchange(
                 lastUserEl, message, lastQuery, entry.content, idx === conv.messages.length - 1,
             );

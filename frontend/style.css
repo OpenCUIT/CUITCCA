@@ -3486,3 +3486,195 @@ pre.has_copy_btn:hover .code_copy_btn,
   .conv_item_actions { opacity: 1; }
   .side_convs { padding: 10px 8px 4px; }
 }
+
+/* ==========================================================================
+   引用角标 / 表格 / 长回答折叠 / 流式光标 / 拖拽上传
+   ========================================================================== */
+
+/* ---- 行内引用角标 + 悬浮预览 ---- */
+
+.citations { position: relative; }
+
+.citation_chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.citation_chips_label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.citation_chip {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--border-faint);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.citation_chip:hover,
+.citation_chip:focus-visible {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-softer);
+}
+
+.citation_preview {
+  position: absolute;
+  z-index: 5;
+  /* 往下弹而不是往上弹：往上会盖住用户正在读的答案正文，往下盖住的是元信息
+     和反馈行，代价小得多。 */
+  top: calc(100% + 6px);
+  max-width: min(420px, 90%);
+  padding: 10px 12px;
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;      /* 预览只是给眼睛看的，不该拦住鼠标移向下一个角标 */
+}
+
+.citation_preview_head {
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.citation_preview_body {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+
+.citation_item.highlight {
+  border-color: var(--primary);
+  background: var(--primary-softer);
+}
+
+/* ---- Markdown 表格 ---- */
+
+.table_scroll {
+  overflow-x: auto;
+  margin: 10px 0;
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+}
+
+.content_bot table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.content_bot th,
+.content_bot td {
+  padding: 7px 11px;
+  border-bottom: 1px solid var(--border-faint);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.content_bot thead th {
+  background: var(--primary-softer);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.content_bot tbody tr:last-child td { border-bottom: none; }
+
+/* ---- 超长回答折叠 ---- */
+
+.replycontent.is-collapsible.is-collapsed {
+  max-height: 560px;
+  overflow: hidden;
+  /* 底部渐隐：明确告诉用户"下面还有"，而不是硬切一刀让人以为答案就到这 */
+  -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+}
+
+.answer_expand_btn {
+  margin-top: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--border-faint);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.answer_expand_btn:hover { color: var(--primary); border-color: var(--primary); }
+
+/* ---- 流式光标 ---- */
+
+.replycontent.is-streaming::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--primary);
+  animation: caret_blink 1s steps(1) infinite;
+}
+
+@keyframes caret_blink { 50% { opacity: 0; } }
+
+/* ---- 拖拽上传 ---- */
+
+.chat_drop_overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--primary);
+  border-radius: var(--radius-lg, 16px);
+  background: var(--primary-softer);
+  backdrop-filter: blur(1px);
+}
+
+.chat_drop_hint {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary-strong);
+}
+
+.chat_drop_hint span {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.talk_outline { position: relative; }
+
+.message.system_note {
+  align-self: center;
+  max-width: min(560px, 90%);
+  margin: 6px auto;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--primary-softer);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.message.system_note.is-error {
+  background: var(--danger-soft);
+  color: var(--danger-text-strong);
+}
