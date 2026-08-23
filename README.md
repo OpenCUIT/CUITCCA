@@ -53,6 +53,9 @@
 - 🧠 **多轮对话** — 问题压缩（condense）+ 会话历史（session cookie + TTLCache）
 - 🔄 **增量摄取管道** — UPSERTS 去重，同名冲突消解（同目录取新 / 跨目录全保留）
 - 📊 **三套评测体系** — 检索质量（76 题 golden，hit_rate/MRR）+ 拒答与知识边界（20 题，幻觉率）+ 回答质量（LLM-as-judge 忠实度/相关性/答案匹配）
+- 📢 **结构化校园数据** — SQLite 通知公告/校园服务表（524 条官方资讯 + 8 项办事指南，种子脚本幂等灌入），`/campus` 只读 API 提供列表/搜索/分类/详情
+- 🔔 **校园通知页 / 校园服务页** — 分类 chips + 关键词搜索 + 分页 + Markdown 详情弹层，与聊天页同一套设计系统
+- 🧰 **结构化查询工具** — Agent 新增 `search_announcements` / `search_campus_services`：模型按问题形态在"语义检索"与"结构化查询"两类工具间自主选择（"最近有什么通知"→通知工具，"校车几点"→服务工具）
 - 🛡️ **安全防护** — 可选 API Key 认证、速率限制、路径穿越防护、文件白名单、CORS 白名单
 - 🔭 **可观测性** — OpenTelemetry + OpenInference，span 树导出，环境变量门控
 - 🌙 **暗色模式** — 跟随 prefers-color-scheme，覆盖全部页面
@@ -166,7 +169,7 @@ QAWorkflow（并复用已算好的 nodes/query_str，不重复计算），低置
 "自动条目的答案没被人背过书，宁可 miss 也不给错"。回答底部的 👍/👎 按钮就是
 这个闭环的入口，见 [反馈闭环](#功能列表) 功能。
 
-Agent 的护栏（技术评审常问，实现在 `backend/app/agents/agent_workflow.py`）：
+Agent 的护栏（实现在 `backend/app/agents/agent_workflow.py`）：
 
 - **最大工具调用轮数**用 `FunctionAgent.run(max_iterations=..., early_stopping_method="generate")`：
   撞上限时让模型用已有信息生成一个回答并标记 `truncated`，而不是硬抛异常炸穿请求
@@ -232,7 +235,6 @@ flowchart LR
 
 详细的模块职责、设计决策与数据流分析见 [架构文档](docs/architecture.md)；
 数据来源、采集方式与合规声明见 [数据来源文档](docs/data-sources.md)；
-用本项目技术评审的讲解脚本与评审者追问的标准答案见 [演示讲稿指南](docs/demo-guide.md)；
 "为什么不用 GraphRAG"的完整论证（校园场景 Agent 多跳 vs 图索引）见
 [GraphRAG 调研评估](docs/graphrag-assessment.md)。
 
