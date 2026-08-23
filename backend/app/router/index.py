@@ -28,6 +28,7 @@ from handlers.index_crud import (
     get_all_docs,
     indexes,
     insert_into_index,
+    is_system_collection,
     list_documents,
     loadAllIndexes,
     saveIndex,
@@ -70,6 +71,10 @@ async def get_index_list():
 @index_app.post("/create")
 async def create_index(index_name: str = Form(max_length=100)):
     sanitized_name = _sanitize_index_name(index_name)
+    # 系统 collection（语义缓存）与知识库住在同一个 Chroma 目录里，重名会让
+    # get_or_create_collection 直接把缓存表当知识库返回。
+    if is_system_collection(sanitized_name):
+        return JSONResponse(content={'status': 'error', 'msg': 'reserved index name'})
     if sanitized_name in list_index_names():
         return JSONResponse(content={'status': 'error', 'msg': 'index already exists'})
     createIndex(sanitized_name)

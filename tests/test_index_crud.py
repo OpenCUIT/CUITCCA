@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import configs.load_env as load_env
 import handlers.index_crud as index_crud
 from llama_index.core.embeddings import MockEmbedding
 from llama_index.core.storage.docstore import SimpleDocumentStore
@@ -536,3 +537,43 @@ class LoadAllIndexesTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SystemCollectionFilterTest(unittest.TestCase):
+    """语义缓存的 collection 不能被当成知识库加载进索引注册表。
+
+    不过滤的话它会成为 QAWorkflow 里 RouterRetriever/LLMSingleSelector 的
+    候选，用户的校园问题可能被路由到缓存表上检索。
+    """
+
+    def setUp(self):
+        # 不能读开发机 backend/.env 里的 EXCLUDED_COLLECTIONS——那份配置随时会
+        # 变（线上正是靠它把合并前的旧 collection 排除掉的），测试跟着它走就
+        # 会在某些机器上莫名其妙地红。固定成空列表，只测代码逻辑。
+        patcher = patch.object(load_env, "EXCLUDED_COLLECTIONS", [])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_qa_cache_collection_is_system(self):
+        self.assertTrue(index_crud.is_system_collection(load_env.QA_CACHE_COLLECTION))
+        self.assertFalse(index_crud.is_system_collection("campus"))
+
+    def test_excluded_collections_are_treated_as_system(self):
+        with patch.object(load_env, "EXCLUDED_COLLECTIONS", ["campus-corpus", "test-index"]):
+            self.assertTrue(index_crud.is_system_collection("campus-corpus"))
+            self.assertTrue(index_crud.is_system_collection("test-index"))
+            self.assertFalse(index_crud.is_system_collection("campus-all"))
+
+    def test_load_all_indexes_skips_system_collection(self):
+        with patch.object(index_crud, "list_index_names",
+                          return_value=[load_env.QA_CACHE_COLLECTION, "campus"]), \
+             patch.object(index_crud, "get_or_create_collection") as mock_get, \
+             patch.object(index_crud, "build_index_from_collection") as mock_build, \
+             patch("configs.llm_predictor.init_settings"):
+            mock_get.return_value = MagicMock(metadata={})
+            mock_build.side_effect = lambda collection: MagicMock(summary="")
+            index_crud.indexes.clear()
+            asyncio.run(index_crud.loadAllIndexes())
+            loaded = [call.args[0] for call in mock_get.call_args_list]
+        self.assertEqual(loaded, ["campus"])
+        index_crud.indexes.clear()

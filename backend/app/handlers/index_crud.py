@@ -35,12 +35,31 @@ def createIndex(index_name: str):
     logging.info(f"index created: {index_name}")
 
 
+def is_system_collection(name: str) -> bool:
+    """系统内部用的 Chroma collection，不是知识库，不能进索引注册表。
+
+    ``list_index_names()`` 返回的是"这个 Chroma 目录下的所有 collection"，
+    而语义缓存（``QA_CACHE_COLLECTION``）也住在同一个目录里。不过滤的话它
+    会被当成一个普通知识库加载进 ``indexes``，进而成为 QAWorkflow 里
+    ``RouterRetriever``/``LLMSingleSelector`` 的候选之一——用户问一句校园
+    问题，选择器有可能把它路由到缓存表上去检索，答案来源直接跑偏。
+
+    ``EXCLUDED_COLLECTIONS``（.env，逗号分隔）是同一个闸门的手动版：评测
+    语料、历史测试数据这类"在盘上但不该参与线上检索"的 collection 列进去
+    就不再加载。索引数每多一个，查询就多背一次 LLM 选索引的开销和失败率，
+    见该配置项在 configs/load_env.py 里的实测数据。
+    """
+    return name == load_env.QA_CACHE_COLLECTION or name in load_env.EXCLUDED_COLLECTIONS
+
+
 async def loadAllIndexes():
     from configs.llm_predictor import init_settings
     init_settings()
     async with _indexes_lock:
         indexes.clear()
         for name in list_index_names():
+            if is_system_collection(name):
+                continue
             try:
                 collection = get_or_create_collection(name)
                 index = build_index_from_collection(collection)
