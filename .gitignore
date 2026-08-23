@@ -49,3 +49,6 @@ test.py
 /tests/playwright/test-results.json
 /tests/playwright/playwright-report/
 backend/app/static/
+
+# 本地笔记/讲稿，不入版本库
+/docs/*.local.md
