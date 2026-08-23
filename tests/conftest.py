@@ -94,3 +94,27 @@ def _pin_admin_api_key_unset(monkeypatch):
     patch.dict/setenv 覆盖即可，monkeypatch 收尾时恢复。
     """
     monkeypatch.setenv('CUITCCA_API_KEY', '')
+
+
+@pytest.fixture(autouse=True)
+def _isolate_chat_history():
+    """服务端会话历史现在会落 SQLite（router/graph_session.PersistentChatHistory）。
+
+    两个问题要在测试里挡掉：一是不能让测试往开发机真实的 data/app.db 里写聊天
+    记录；二是模块级的热层缓存跨用例复用会让"上一个用例的历史"泄漏到下一个
+    用例（和上面 retriever 缓存、限流桶是同一类全局状态问题）。
+
+    默认关掉持久化 + 每个用例前后清空热层。要验证持久化行为的用例（见
+    tests/test_chat_history_persistence.py）自己 patch 回 True 并指向临时库。
+    """
+    import configs.load_env as load_env
+    from router.graph_session import _chat_histories, _last_query_response
+
+    original = load_env.CHAT_HISTORY_PERSIST
+    load_env.CHAT_HISTORY_PERSIST = False
+    _chat_histories.clear()
+    _last_query_response._data.clear()
+    yield
+    _chat_histories.clear()
+    _last_query_response._data.clear()
+    load_env.CHAT_HISTORY_PERSIST = original

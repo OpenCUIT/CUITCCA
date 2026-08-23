@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import time
 import uuid
@@ -39,6 +40,13 @@ async def lifespan(app: FastAPI):
             os.makedirs(directory)
     os.makedirs(os.path.dirname(load_env.db_path), exist_ok=True)
     await asyncio.to_thread(stats_db.init_db, load_env.db_path)
+
+    # 会话历史保留期清理：启动时跑一次就够，历史是低频增长的小表。
+    pruned = await asyncio.to_thread(
+        stats_db.prune_chat_history, load_env.db_path, load_env.CHAT_HISTORY_RETENTION_DAYS
+    )
+    if pruned:
+        logging.info("清理了 %d 条过期会话历史（保留 %d 天）。", pruned, load_env.CHAT_HISTORY_RETENTION_DAYS)
 
     loaded = await asyncio.to_thread(stats_db.load_stats, load_env.db_path)
     _mgmt_access_stats["total_visits"] = loaded["total_visits"]

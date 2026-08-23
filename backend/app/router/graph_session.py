@@ -6,10 +6,17 @@
 都能 import 的地方而不是任何一方的模块里。TTLCache 的容量/过期参数原来写
 死在 graph.py 顶部，原样搬过来。
 """
+import asyncio
+import logging
 import time
 from collections import OrderedDict
 
+import configs.load_env as load_env
+import utils.db as stats_db
 from fastapi import Request
+from llama_index.core.base.llms.types import ChatMessage, MessageRole
+
+logger = logging.getLogger(__name__)
 
 # 会话缓存最大容量
 _MAX_SESSIONS = 200
@@ -78,5 +85,93 @@ def pop_last_exchange(key: str) -> None:
     _chat_histories.set(key, history[:-2])
 
 
-_chat_histories: TTLCache = TTLCache()
+class PersistentChatHistory:
+    """内存热层 + SQLite 持久层的会话历史。
+
+    对外沿用 ``TTLCache`` 的 ``get``/``set`` 接口（四个 graph 子路由都在用），
+    区别只在两头：
+
+    - ``get()`` 内存 miss 时回源 SQLite。此前历史只在内存里，进程一重启就
+      清零，而前端 localStorage 那份还在——用户看着满屏对话，追问"它是哪一
+      年成立的"却拿不到指代对象，condense 静默丢上下文；反馈端点的防投毒
+      校验也会跟着 400。守护脚本崩溃即重启，这个窗口并不罕见。
+    - ``set()`` 先落内存再把写库丢进线程池。SQLite 写是同步阻塞调用，压在
+      事件循环上就是这个项目在 index 路由里刚修过的那个坑；历史写失败不该
+      让一次提问失败，所以是 best-effort + 日志。
+
+    同时按 ``CHAT_HISTORY_MAX_TURNS`` 截断：不设上限的话长对话会一路把
+    condense 的 prompt 撑大，成本和延迟跟着涨，最后撞上下文窗口。
+    """
+
+    def __init__(self) -> None:
+        self._hot = TTLCache()
+
+    def _max_messages(self) -> int:
+        return max(2, load_env.CHAT_HISTORY_MAX_TURNS * 2)
+
+    def get(self, key):
+        cached = self._hot.get(key)
+        if cached is not None:
+            return cached
+        if not load_env.CHAT_HISTORY_PERSIST:
+            return None
+        try:
+            rows = stats_db.load_chat_history(load_env.db_path, key, self._max_messages())
+        except Exception:
+            logger.warning("读取持久化会话历史失败，降级为空历史。", exc_info=True)
+            return None
+        if not rows:
+            return None
+        history = [
+            ChatMessage(role=MessageRole(role), content=content) for role, content in rows
+        ]
+        self._hot.set(key, history)
+        return history
+
+    def set(self, key, history) -> None:
+        trimmed = list(history)[-self._max_messages():]
+        self._hot.set(key, trimmed)
+        self._persist(key, trimmed)
+
+    def _persist(self, key, history) -> None:
+        if not load_env.CHAT_HISTORY_PERSIST:
+            return
+        payload = [
+            (str(getattr(m.role, "value", m.role)), m.content or "") for m in history
+        ]
+        db_path = load_env.db_path
+
+        def _write() -> None:
+            try:
+                stats_db.replace_chat_history(db_path, key, payload)
+            except Exception:
+                logger.warning("持久化会话历史失败（不影响本次回答）。", exc_info=True)
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            _write()  # 同步上下文（测试、脚本）直接写
+        else:
+            loop.run_in_executor(None, _write)
+
+    def clear(self) -> None:
+        """清空内存热层（测试隔离用；不动持久层，那是用户数据）。"""
+        self._hot._data.clear()
+
+    def hot_values(self):
+        """热层里当前缓存的各会话历史。只读用途（测试断言"历史没被污染"），
+        不代表持久层的全量内容。"""
+        return [entry[0] for entry in self._hot._data.values()]
+
+    def __contains__(self, key) -> bool:
+        return self.get(key) is not None
+
+    def __len__(self) -> int:
+        return len(self._hot)
+
+
+_chat_histories: PersistentChatHistory = PersistentChatHistory()
+# 来源节点仍然只在内存：NodeWithScore 带 embedding 和全文，落库成本远高于
+# 收益，而它的用途（答完立刻拉引用来源、反馈时附带来源）都是短窗口行为。
+# 代价是重启后点赞入 curated 缓存的条目会没有来源，可接受。
 _last_query_response: TTLCache = TTLCache()

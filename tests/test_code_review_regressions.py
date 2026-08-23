@@ -173,7 +173,7 @@ class AgentStreamHistoryTest(unittest.TestCase):
             self.assertEqual(resp.status_code, 200)
             resp.read()
 
-        for history in _chat_histories._data.values():
+        for history in _chat_histories.hot_values():
             for msg in history[0]:
                 self.assertTrue(
                     (msg.content or "").strip(),

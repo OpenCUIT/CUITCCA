@@ -126,6 +126,14 @@ RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 # 单元（差不多是一句短话的长度），可通过 MIN_CHUNK_LENGTH 按语料实际情况调整。
 MIN_CHUNK_LENGTH = 30
 
+# 会话历史：服务端那份（问题压缩 condense 与反馈防投毒校验都读它）落 SQLite，
+# 内存 TTLCache 退化成热层。CHAT_HISTORY_MAX_TURNS 同时是"喂给 condense 的
+# 上下文上限"——不设上限的话长对话会一路把 prompt 撑大，成本和延迟跟着涨，
+# 最后撞模型上下文窗口。RETENTION_DAYS <= 0 表示不清理。
+CHAT_HISTORY_PERSIST = True
+CHAT_HISTORY_MAX_TURNS = 10
+CHAT_HISTORY_RETENTION_DAYS = 30
+
 
 def reload_env_variables():
     load_dotenv(ENV_PATH, override=True)
@@ -136,7 +144,8 @@ def reload_env_variables():
         HYBRID_RETRIEVAL_ENABLED, QUERY_REWRITE_ENABLED, QUERY_REWRITE_SCORE_THRESHOLD, \
         AUTO_ROUTE_SCORE_THRESHOLD, QA_CACHE_ENABLED, QA_CACHE_COLLECTION, QA_CACHE_AUTO_THRESHOLD, \
         QA_CACHE_CURATED_THRESHOLD, QA_CACHE_MAX_AUTO_ENTRIES, MIN_CHUNK_LENGTH, \
-        EXCLUDED_COLLECTIONS
+        EXCLUDED_COLLECTIONS, CHAT_HISTORY_PERSIST, CHAT_HISTORY_MAX_TURNS, \
+        CHAT_HISTORY_RETENTION_DAYS
 
     openai_api_key = os.environ.get("OPENAI_API_KEY")
     openai_api_base = os.environ.get('OPENAI_API_BASE') or 'https://api.openai.com/v1'
@@ -200,6 +209,9 @@ def reload_env_variables():
 
     # 摄取管道噪声块过滤的最小保留长度。校准依据见上方模块级常量注释。
     MIN_CHUNK_LENGTH = int(os.environ.get('MIN_CHUNK_LENGTH', '30'))
+    CHAT_HISTORY_PERSIST = os.environ.get('CHAT_HISTORY_PERSIST', 'True').lower() in ('true', '1', 't')
+    CHAT_HISTORY_MAX_TURNS = int(os.environ.get('CHAT_HISTORY_MAX_TURNS', '10'))
+    CHAT_HISTORY_RETENTION_DAYS = int(os.environ.get('CHAT_HISTORY_RETENTION_DAYS', '30'))
     EXCLUDED_COLLECTIONS = [
         c.strip() for c in os.environ.get('EXCLUDED_COLLECTIONS', '').split(',') if c.strip()
     ]

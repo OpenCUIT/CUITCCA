@@ -11,10 +11,10 @@ import tests._pathsetup  # noqa: F401
 class SessionIsolationTest(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
-        _chat_histories._data.clear()
+        _chat_histories.clear()
 
     def tearDown(self):
-        _chat_histories._data.clear()
+        _chat_histories.clear()
 
     def test_different_clients_get_different_engines(self):
         # Client A creates graph
@@ -29,7 +29,8 @@ class SessionIsolationTest(unittest.TestCase):
         for i in range(10):
             _chat_histories.set(f"client_{i}", [ChatMessage(role=MessageRole.USER, content="x")])
 
-        self.assertLessEqual(len(_chat_histories), _chat_histories._max_size)
+        # 热层仍是同一个 TTLCache，容量上限没变（持久层不受此限制）
+        self.assertLessEqual(len(_chat_histories), _chat_histories._hot._max_size)
 
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+import datetime as _dt
 import sqlite3
 from contextlib import closing
 
@@ -21,6 +22,16 @@ CREATE TABLE IF NOT EXISTS feedback (
     email TEXT,
     message TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_key TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_key ON chat_messages(session_key, seq);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_updated ON chat_messages(updated_at);
 CREATE TABLE IF NOT EXISTS announcements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
@@ -142,3 +153,58 @@ def list_feedback(db_path: str, limit: int = 100) -> list[dict]:
             (limit,),
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+# ===== 会话历史持久化 =====
+# 服务端历史此前只在内存 TTLCache 里（200 会话 / 1 小时）。进程一重启就清零，
+# 而前端 localStorage 那份还在——用户看着满屏对话，追问"它是哪一年成立的"却
+# 拿不到指代对象，问题压缩（condense）静默失去上下文；反馈端点的防投毒校验
+# （response 必须等于本会话最后一条 assistant 消息）也会因此 400。守护脚本
+# 崩溃即重启，这个窗口比想象中常见。落到 SQLite（与统计/反馈同一个库、同一
+# 套 WAL 配置）之后，内存 cache 退化成热层。
+
+
+def replace_chat_history(db_path: str, session_key: str, messages: list[tuple[str, str]]) -> None:
+    """整体替换一个会话键的历史（``(role, content)`` 有序列表）。
+
+    整体替换而不是追加：调用方（router/graph_*）本来就是"读出整段 -> 追加
+    两条 -> 写回整段"的用法，``pop_last_exchange``（重新生成）还会往回删，
+    整体替换语义最直白，也不会出现内存与库不一致的中间态。
+    """
+    now = _dt.datetime.now(_dt.UTC).isoformat(timespec="seconds")
+    with closing(_connect(db_path)) as conn:
+        conn.execute("DELETE FROM chat_messages WHERE session_key = ?", (session_key,))
+        if messages:
+            conn.executemany(
+                "INSERT INTO chat_messages (session_key, seq, role, content, updated_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                [(session_key, i, role, content, now) for i, (role, content) in enumerate(messages)],
+            )
+        conn.commit()
+
+
+def load_chat_history(db_path: str, session_key: str, limit: int = 40) -> list[tuple[str, str]]:
+    """读回一个会话键的历史，最多 ``limit`` 条（按写入顺序）。"""
+    with closing(_connect(db_path)) as conn:
+        rows = conn.execute(
+            "SELECT role, content FROM chat_messages WHERE session_key = ? "
+            "ORDER BY seq DESC LIMIT ?",
+            (session_key, limit),
+        ).fetchall()
+    return [(r["role"], r["content"]) for r in reversed(rows)]
+
+
+def prune_chat_history(db_path: str, retention_days: int) -> int:
+    """删掉 ``retention_days`` 天没更新过的会话历史，返回删除条数。
+
+    ``retention_days <= 0`` 表示不清理（留给"我就是要永久保留"的部署）。
+    """
+    if retention_days <= 0:
+        return 0
+    cutoff = (_dt.datetime.now(_dt.UTC) - _dt.timedelta(days=retention_days)).isoformat(
+        timespec="seconds"
+    )
+    with closing(_connect(db_path)) as conn:
+        cursor = conn.execute("DELETE FROM chat_messages WHERE updated_at < ?", (cutoff,))
+        conn.commit()
+        return cursor.rowcount or 0
