@@ -492,6 +492,7 @@ def test_build_agent_uses_all_enabled_default_tools():
 
     assert tool_names == {
         "search_knowledge_base", "list_knowledge_bases", "get_document_chunks_by_source", "get_current_datetime",
+        "search_announcements", "search_campus_services",
     }
 
 

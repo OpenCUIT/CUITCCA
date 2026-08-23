@@ -21,6 +21,11 @@
 日期工具 ``get_current_datetime`` 只做纯本地时间计算，语料里没有 2026 年
 校历数据，工具描述里明确写清楚它不知道学校的具体安排——不装作能查校历。
 
+结构化数据工具 ``search_announcements`` / ``search_campus_services`` 查
+SQLite 里的通知公告与校园服务表（``utils/campus_data.py``，数据由
+``scripts/seed_campus_data.py`` 离线灌入）——覆盖"最近的""按时间排序的"
+这类向量检索做不了的枚举查询，以及电话/时段类的精确事实查询。
+
 ## 索引选择：单索引场景复用 build_retriever_for_index，多索引场景复用
    qa_workflow 的路由分支，不重新发明
 
@@ -54,9 +59,11 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from agents.registry import ToolRegistry, ToolSpec
+from configs import load_env
 from handlers.hybrid_retriever import build_retriever_for_index
 from handlers.index_crud import get_index_by_name, indexes
 from llama_index.core.schema import NodeWithScore, QueryBundle
+from utils import campus_data
 from utils.llama import index_description
 from utils.rerank import ConditionalRerankPostprocessor
 
@@ -262,6 +269,77 @@ def get_current_datetime() -> str:
 
 
 # ---------------------------------------------------------------------------
+# 结构化校园数据工具（SQLite 表，scripts/seed_campus_data.py 离线灌入）。
+# 跟 search_knowledge_base 的分工：向量检索回答"XX 规定/办法的内容是什么"，
+# 这里回答"最近有哪些通知/新闻"和"某项校园服务怎么办、电话多少"——前者是
+# 按时间排序的枚举查询（向量检索天然做不了），后者是精确的事实查询
+# （SQL 命中比语义召回更可靠）。这正是 CampusAgent 区别于纯 RAG 的部分：
+# 模型按问题形态在"语义检索"和"结构化查询"两类工具间自主选择。
+# ---------------------------------------------------------------------------
+
+_DEFAULT_ANNOUNCEMENT_LIMIT = 5
+_HARD_ANNOUNCEMENT_LIMIT = 20
+
+
+async def search_announcements(
+    query: str | None = None, category: str | None = None, limit: int = _DEFAULT_ANNOUNCEMENT_LIMIT
+) -> str:
+    """查询校园通知/新闻（结构化数据，按发布时间倒序）。"""
+    limit = max(1, min(int(limit), _HARD_ANNOUNCEMENT_LIMIT))
+    query = (query or "").strip() or None
+    category = (category or "").strip() or None
+    try:
+        result = await asyncio.to_thread(
+            campus_data.list_announcements,
+            load_env.db_path,
+            query=query,
+            category=category,
+            limit=limit,
+            with_content=True,
+        )
+    except Exception:
+        logger.exception("search_announcements 失败: query=%r category=%r", query, category)
+        return json.dumps({"error": "查询校园通知时出现内部错误，可以稍后重试。"}, ensure_ascii=False)
+
+    items = []
+    for row in result["items"]:
+        content, truncated = _truncate(row["content"], _MAX_SNIPPET_CHARS)
+        head = {k: row[k] for k in ("id", "title", "category", "source", "published_at", "summary", "source_url")}
+        items.append({**head, "content": content, "content_truncated": truncated})
+    return json.dumps(
+        {"total_matched": result["total"], "returned": len(items), "items": items},
+        ensure_ascii=False,
+    )
+
+
+async def search_campus_services(query: str | None = None, category: str | None = None) -> str:
+    """查询校园服务指南（食堂/校车/快递/热水/一卡通/校医院等）。"""
+    query = (query or "").strip() or None
+    category = (category or "").strip() or None
+    try:
+        items = await asyncio.to_thread(
+            campus_data.list_campus_services,
+            load_env.db_path,
+            query=query,
+            category=category,
+        )
+    except Exception:
+        logger.exception("search_campus_services 失败: query=%r category=%r", query, category)
+        return json.dumps({"error": "查询校园服务时出现内部错误，可以稍后重试。"}, ensure_ascii=False)
+
+    return json.dumps(
+        {
+            "total_matched": len(items),
+            "items": [
+                {k: svc[k] for k in ("id", "name", "category", "icon", "content", "source")}
+                for svc in items
+            ],
+        },
+        ensure_ascii=False,
+    )
+
+
+# ---------------------------------------------------------------------------
 # 默认工具集注册。工具描述是模型选择工具的唯一依据，见模块 docstring；每条都
 # 写清楚"什么时候该用/不该用、参数什么意思、返回什么形状"。
 # ---------------------------------------------------------------------------
@@ -270,6 +348,8 @@ SEARCH_KNOWLEDGE_BASE = "search_knowledge_base"
 LIST_KNOWLEDGE_BASES = "list_knowledge_bases"
 GET_DOCUMENT_CHUNKS_BY_SOURCE = "get_document_chunks_by_source"
 GET_CURRENT_DATETIME = "get_current_datetime"
+SEARCH_ANNOUNCEMENTS = "search_announcements"
+SEARCH_CAMPUS_SERVICES = "search_campus_services"
 
 
 def register_default_tools(registry: ToolRegistry) -> None:
@@ -351,6 +431,46 @@ def register_default_tools(registry: ToolRegistry) -> None:
                 "答案。"
             ),
             fn=get_current_datetime,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name=SEARCH_ANNOUNCEMENTS,
+            description=(
+                "查询学校官方的通知公告和新闻（结构化数据，按发布时间从新到旧排序），"
+                "涵盖四个栏目：通知公告、成信要闻、综合新闻、成信学术。适合两类问题：\n"
+                "1. \"最近/最新有什么通知\"\"最近有什么新闻\"这类按时间的列表请求——"
+                "不传 query 直接返回最新条目；\n"
+                "2. 想找某个主题的通知（如\"转专业的通知\"\"评教的通知\"）——query 传"
+                "关键词做标题/正文匹配。\n"
+                "跟「知识库检索」的区别：那个是语义检索文档内容，回答\"XX 规定是什么\"；"
+                "这个是按时间排序的官方信息流，回答\"最近发布了什么\"。用户问列表或"
+                "时间敏感的\"最新\"信息时应优先用本工具。\n"
+                "参数：query 可选（关键词）；category 可选（通知公告/成信要闻/综合新闻/"
+                "成信学术之一）；limit 可选，默认 5、上限 20。\n"
+                "返回 JSON：items 每条含 id/title/category/source/published_at/summary/"
+                "source_url/content（content 可能截断）。total_matched 为 0 表示没有"
+                "匹配的通知，此时如实告知，不要编造。回答时注明每条的发布日期和来源。"
+            ),
+            async_fn=search_announcements,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name=SEARCH_CAMPUS_SERVICES,
+            description=(
+                "查询校园生活服务指南：食堂餐饮、校车交通、快递收发、学生公寓热水、"
+                "校园一卡通、校医院与医保、学生公寓服务、物业报修。回答\"XX 服务怎么办/"
+                "几点/电话多少/在哪里\"这类办事类问题时优先用本工具，而不是知识库"
+                "语义检索——服务信息（电话、时段、地址）是精确事实，SQL 精确匹配比"
+                "语义召回更可靠。\n"
+                "参数：query 可选（服务名或关键词，如\"校车\"\"热水\"\"快递\"）；"
+                "category 可选（生活服务/医疗健康）。不传条件返回全部服务。\n"
+                "返回 JSON：items 每条含 id/name/category/icon/content（完整办理"
+                "指南，Markdown）/source。没有匹配项时如实说明没有这项服务的数据，"
+                "可以建议用户换关键词或反馈。"
+            ),
+            async_fn=search_campus_services,
         )
     )
 

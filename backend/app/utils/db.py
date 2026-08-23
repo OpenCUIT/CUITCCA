@@ -21,6 +21,31 @@ CREATE TABLE IF NOT EXISTS feedback (
     email TEXT,
     message TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS announcements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '通知公告',
+    source TEXT NOT NULL DEFAULT '',
+    source_url TEXT,
+    published_at TEXT,
+    summary TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    content_hash TEXT UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_announcements_category ON announcements(category);
+CREATE INDEX IF NOT EXISTS idx_announcements_published ON announcements(published_at);
+CREATE TABLE IF NOT EXISTS campus_services (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    category TEXT NOT NULL,
+    icon TEXT NOT NULL DEFAULT '',
+    keywords TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_campus_services_category ON campus_services(category);
 """
 
 

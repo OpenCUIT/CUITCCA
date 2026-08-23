@@ -18,6 +18,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from handlers.index_crud import loadAllIndexes
+from router.campus import campus_app
 from router.graph import graph_app
 from router.index import index_app
 from router.manage import manage_app
@@ -82,6 +83,7 @@ app.include_router(index_app, prefix='/index', tags=['index'])
 app.include_router(graph_app, prefix='/graph', tags=['graph'])
 app.include_router(response_app, prefix='/response', tags=['response'])
 app.include_router(manage_app, prefix='/manage', tags=['manage'])
+app.include_router(campus_app, prefix='/campus', tags=['campus'])
 
 # 速率限制：每 IP 每 60 秒最多 30 次请求（LLM 查询端点）
 RATE_LIMIT_WINDOW = 60
