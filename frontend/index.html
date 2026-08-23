@@ -24,6 +24,18 @@
                 <div class="headline_head">校园问答助手</div>
                 <div class="share"></div>
             </header>
+            <!-- 多会话工具条：新建/切换/重命名/删除会话（数据在浏览器本地，
+                 服务端上下文按 conversation_id 隔离） -->
+            <div class="chat_sessions_bar" id="chat-sessions-bar">
+                <button class="chat_session_new" id="session-new" type="button" title="开始一个新会话">＋ 新对话</button>
+                <div class="chat_session_current_wrap">
+                    <button class="chat_session_current" id="session-current" type="button" aria-haspopup="listbox" aria-expanded="false">
+                        <span class="chat_session_title" id="session-current-title">新对话</span>
+                        <span class="chat_session_caret" aria-hidden="true">▾</span>
+                    </button>
+                    <div class="chat_session_menu is-hidden" id="session-menu" role="listbox"></div>
+                </div>
+            </div>
             <div class="talk_outline">
                 <div class="talk_outlinein">
                     <div class="talk_content" id="chatbox" aria-live="polite" aria-label="对话记录">
@@ -99,6 +111,7 @@
 
     <script src="./marked.min.js"></script>
     <script src="./purify.min.js"></script>
+    <script src="./highlight.min.js"></script>
     <script type="module" src="./src/chat.ts"></script>
     <script type="module" src="./src/sidebar.ts" data-active="index"></script>
 </body>

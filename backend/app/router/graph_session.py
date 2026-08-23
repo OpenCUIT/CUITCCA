@@ -53,5 +53,30 @@ def _client_id(request: Request) -> str:
     return request.cookies.get("session_id") or "unknown"
 
 
+def effective_client_id(request: Request, conversation_id: str | None) -> str:
+    """多会话支持的会话键：同一浏览器 cookie 下用 ``{session}#{conversation}``
+    隔离出多份独立的服务端历史。
+
+    前端每个会话生成一个 uuid 作为 conversation_id 随请求带上；不带时行为
+    与原来完全一致（cookie 会话即历史），旧端点/旧测试零影响。反馈端点
+    （/graph/qa_feedback）也要用同一个键才能通过防投毒校验。
+    """
+    base = _client_id(request)
+    conversation_id = (conversation_id or "").strip()
+    if not conversation_id:
+        return base
+    return f"{base}#{conversation_id[:64]}"
+
+
+def pop_last_exchange(key: str) -> None:
+    """弹掉会话里最后一轮 user+assistant 问答（前端"重新生成"时调用：
+    先撤回上一轮，再用同一个问题重跑，condense 才不会把"刚才已经答过
+    一遍"带进上下文）。"""
+    history = _chat_histories.get(key)
+    if not history or len(history) < 2:
+        return
+    _chat_histories.set(key, history[:-2])
+
+
 _chat_histories: TTLCache = TTLCache()
 _last_query_response: TTLCache = TTLCache()

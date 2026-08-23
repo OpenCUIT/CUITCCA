@@ -5,3 +5,7 @@ declare const marked: {
 declare const DOMPurify: {
   sanitize(html: string, options?: { ADD_ATTR?: string[] }): string;
 };
+
+declare const hljs: {
+  highlightElement(codeBlock: HTMLElement): void;
+};

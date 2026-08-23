@@ -3,11 +3,19 @@
 import { apiFetch } from '../utils/api';
 import { showToast } from '../utils/toast';
 import { loadCitations } from './citations';
-import { appendBotBubble, appendUserBubble, renderMarkdown, scrollToBottom, showThinkingIndicator } from './dom';
+import {
+    appendBotBubble,
+    appendUserBubble,
+    enhanceCodeBlocks,
+    renderMarkdown,
+    scrollToBottom,
+    showThinkingIndicator,
+} from './dom';
 import { appendHistory } from './history';
+import { getActiveConversation, removeLastBotMessage } from './conversations';
 
 // ===== 自动路由：后端按检索置信度自己决定走标准问答还是 Agent 模式 =====
-// 原来这里有一个"标准问答/Agent 模式"切换器，把"这个问题复不复杂"的架构
+// 原来这里有一个"标准问答/Agent 模式"切换器，把"这个问题复不复杂"这个架构
 // 决策甩给了用户——学生没有依据判断该点哪个按钮。现在所有提问统一发到
 // /graph/ask_stream，后端（handlers/auto_router.py）先按检索置信度自动判定
 // 走哪条链路，NDJSON 流里第一个事件（type: "route"）会带上判定结果，前端
@@ -17,6 +25,8 @@ const TOOL_NAME_LABELS: Record<string, string> = {
     list_knowledge_bases: '列出知识库',
     get_document_chunks_by_source: '按来源取原文',
     get_current_datetime: '当前日期',
+    search_announcements: '校园通知检索',
+    search_campus_services: '校园服务检索',
 };
 
 let activeAbortController: AbortController | null = null;
@@ -38,6 +48,77 @@ export function dismissStarter() {
     document.getElementById('starter')?.remove();
 }
 
+// ===== 消息级操作：复制整条回答 / 重新生成（最后一条） =====
+// 复制：任意历史回答都有；重新生成：只有最后一条回答有（重新生成中间某轮
+// 会造成后面所有轮次的上下文错位）。重新生成走 pop_last + skip_cache——
+// 服务端撤回上一轮历史 + 跳过语义缓存，否则同一问题逐字重发必然命中缓存
+// 拿回一字不差的旧答案，"重新生成"就成了摆设。
+function renderMessageActions(
+    messageEl: HTMLElement,
+    query: string,
+    answer: string,
+    opts: { isLast: boolean },
+) {
+    const contentEl = messageEl.querySelector('.content_bot') as HTMLElement | null;
+    if (!contentEl || contentEl.querySelector('.answer_actions')) return;
+
+    const row = document.createElement('div');
+    row.className = 'answer_actions';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'answer_action_btn';
+    copyBtn.textContent = '📋 复制';
+    copyBtn.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(answer);
+            copyBtn.textContent = '✓ 已复制';
+            setTimeout(() => (copyBtn.textContent = '📋 复制'), 1500);
+        } catch {
+            showToast('复制失败，请手动选择复制', 'error');
+        }
+    });
+    row.appendChild(copyBtn);
+
+    if (opts.isLast) {
+        const regenBtn = document.createElement('button');
+        regenBtn.type = 'button';
+        regenBtn.className = 'answer_action_btn';
+        regenBtn.textContent = '🔄 重新生成';
+        regenBtn.addEventListener('click', () => regenerateAnswer(query, messageEl));
+        row.appendChild(regenBtn);
+    }
+
+    contentEl.appendChild(row);
+}
+
+function regenerateAnswer(query: string, oldMessageEl: HTMLElement) {
+    // 撤掉旧回答（DOM + 本地存储），保留它的提问气泡；服务端历史由
+    // pop_last=1 撤回。然后以"重新生成"参数重跑同一条流式管线。
+    const conv = getActiveConversation();
+    removeLastBotMessage(conv.id);
+    oldMessageEl.remove();
+
+    const { answerEl, citations, message } = appendBotBubble();
+    showThinkingIndicator(answerEl);
+    scrollToBottom();
+    setGeneratingUI(true);
+    streamAsk(query, answerEl, citations, message, { popLast: true, skipCache: true }).finally(
+        () => setGeneratingUI(false),
+    );
+}
+
+// 上一条回答的"重新生成"标记：新回答/新提问出现后要移除旧行上的按钮
+// （旧行降级为只有复制）。简单起见用全局记录最后挂了重新生成按钮的行。
+let lastRegenRow: { row: HTMLElement; btn: HTMLElement } | null = null;
+
+function demoteLastRegenRow() {
+    if (lastRegenRow) {
+        lastRegenRow.btn.remove();
+        lastRegenRow = null;
+    }
+}
+
 export function sendMessage() {
     const input = document.getElementById('input') as HTMLInputElement;
     const question = input.value.trim();
@@ -47,6 +128,7 @@ export function sendMessage() {
     // 避免用户误以为那些建议还是针对"接下来要问什么"的。
     clearActiveSuggestions();
     dismissStarter();
+    demoteLastRegenRow();
     appendUserBubble(question);
     appendHistory('user', question);
     input.value = '';
@@ -190,13 +272,15 @@ function renderFeedbackRow(messageEl: HTMLElement, query: string, answer: string
     const submit = async (vote: 'up' | 'down', chosen: HTMLButtonElement, okLabel: string) => {
         lock(chosen, okLabel);
         try {
+            const conv = getActiveConversation();
             const resp = await apiFetch('/graph/qa_feedback', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body:
                     'query=' + encodeURIComponent(query) +
                     '&response=' + encodeURIComponent(answer) +
-                    '&vote=' + vote,
+                    '&vote=' + vote +
+                    '&conversation_id=' + encodeURIComponent(conv.id),
             });
             showToast(resp.ok ? (vote === 'up' ? '已沉淀，相似问题将直接复用此答案' : '已记录反馈，感谢你的帮助') : '反馈提交失败，请稍后再试', resp.ok ? 'success' : 'error');
         } catch (e) {
@@ -224,6 +308,7 @@ async function streamAsk(
     answerEl: HTMLElement,
     citationsEl: HTMLElement,
     messageEl: HTMLElement,
+    opts: { popLast?: boolean; skipCache?: boolean } = {},
 ) {
     activeAbortController = new AbortController();
     const startTs = performance.now();
@@ -236,11 +321,15 @@ async function streamAsk(
     let runFailed = false;
     let traceEl: HTMLElement | null = null;
     const runningTraces: Array<{ status: HTMLElement; item: HTMLElement; toolName: string; done: boolean }> = [];
+    // 多会话：请求带上当前会话 id，服务端按 {cookie}#{conversation} 隔离历史。
+    // 每次发请求时现取（而不是 sendMessage 时捕获）——流式过程中理论上不会
+    // 切会话，但取实时值能保证与 UI 状态一致。
+    const conversationId = getActiveConversation().id;
 
     // 回答元信息条：路由判定原因 + 首字/总耗时，放在气泡最底部一行小字。
     // 对日常用户是低噪的透明说明；对排查/演示场景，这一行把"后端自动路由
     // 架构"和"性能开销"直接摊开——比如标准问答会显示"已检索到高置信度内容
-    // （top1=0.73）"，Agent 会显示"检索置信度不足，深入查证"，技术评审时指着
+    // （top1=0.73）"，Agent 会显示"检索置信度不足，深入查证"，演示时指着
     // 它就能讲清楚两条链路的取舍。
     //
     // 注意：原设计里 standard 分支刻意不刷"用了什么模式"的提示（多数问题的
@@ -300,10 +389,13 @@ async function streamAsk(
     };
 
     try {
+        const formParts = ['query=' + encodeURIComponent(query), 'conversation_id=' + encodeURIComponent(conversationId)];
+        if (opts.skipCache) formParts.push('skip_cache=true');
+        if (opts.popLast) formParts.push('pop_last=true');
         const response = await apiFetch('/graph/ask_stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'query=' + encodeURIComponent(query),
+            body: formParts.join('&'),
             signal: activeAbortController.signal,
         });
 
@@ -419,6 +511,16 @@ async function streamAsk(
                     // 回答质量反馈行：👍 沉淀 / 👎 反馈。缓存命中（mode=cache）
                     // 的回答也挂——用户觉得缓存答案不行时正需要 👎 把坏条目删掉。
                     renderFeedbackRow(messageEl, query, fullText);
+                    // 消息级操作：复制 / 重新生成（最后一条），并降级上一条的
+                    // 重新生成按钮（新一轮回答出现后，上一轮不再是"最后一条"）
+                    demoteLastRegenRow();
+                    renderMessageActions(messageEl, query, fullText, { isLast: true });
+                    lastRegenRow = {
+                        row: messageEl,
+                        btn: messageEl.querySelector('.answer_actions .answer_action_btn:last-child') as HTMLElement,
+                    };
+                    // 回答定格：一次性代码高亮（流式期间逐帧重绘，不跑 hljs）
+                    enhanceCodeBlocks(answerEl);
                     if (routeBadge) {
                         routeBadge.textContent = '已深入查证多个来源';
                     }

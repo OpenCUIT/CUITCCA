@@ -56,3 +56,43 @@ export function showThinkingIndicator(answerEl: HTMLElement) {
     // 打字"的临场感。
     answerEl.innerHTML = '<span class="thinking-indicator"><span class="thinking-spinner"></span>正在思考<span class="thinking-dots"></span></span>';
 }
+
+// ===== 代码高亮（highlight.js，vendor 全局脚本）=====
+// 只在回答定格后调用一次（streaming 期间每个 rAF 都整段重绘 innerHTML，
+// 逐帧跑 hljs 既贵又会因为半成品代码块闪跳）。每个 pre 加复制按钮。
+export function enhanceCodeBlocks(scope: HTMLElement) {
+    if (typeof hljs === 'undefined') return;
+    scope.querySelectorAll('pre code').forEach(code => {
+        const block = code as HTMLElement;
+        try {
+            // highlightElement 幂等标记：已高亮过的（历史回放重复调用）跳过
+            if (!block.dataset.highlighted) {
+                hljs.highlightElement(block);
+            }
+        } catch {
+            // 未知语言等高亮失败：代码块原样保留，不影响正文
+        }
+        const pre = block.parentElement as HTMLElement | null;
+        if (pre && !pre.querySelector('.code_copy_btn')) {
+            pre.classList.add('has_copy_btn');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'code_copy_btn';
+            btn.textContent = '复制';
+            btn.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(block.textContent || '');
+                    btn.textContent = '✓ 已复制';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.textContent = '复制';
+                        btn.classList.remove('copied');
+                    }, 1500);
+                } catch {
+                    btn.textContent = '复制失败';
+                }
+            });
+            pre.appendChild(btn);
+        }
+    });
+}

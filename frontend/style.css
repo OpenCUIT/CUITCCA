@@ -3492,3 +3492,306 @@ input:focus, select:focus, textarea:focus {
 .campus_list[hidden] {
   display: none;
 }
+
+/* ==========================================================================
+   多会话工具条 + 消息级操作 + 代码高亮（阶段 8）
+   ========================================================================== */
+
+.chat_sessions_bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px 0;
+  max-width: var(--chat-col-max);
+  margin: 0 auto;
+  width: 100%;
+}
+
+.chat_session_new {
+  flex-shrink: 0;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--primary);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chat_session_new:hover {
+  background: var(--primary-soft);
+  box-shadow: var(--shadow-xs);
+}
+
+.chat_session_current_wrap {
+  position: relative;
+  min-width: 0;
+  flex: 1;
+  max-width: 320px;
+}
+
+.chat_session_current {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  color: var(--text-primary);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chat_session_current:hover {
+  border-color: var(--border-strong);
+}
+
+.chat_session_title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.chat_session_caret {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.chat_session_menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  z-index: 900;
+  animation: msg-in 0.18s ease;
+}
+
+.chat_session_empty {
+  padding: 14px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.chat_session_item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--radius-sm);
+  padding: 4px 6px 4px 4px;
+}
+
+.chat_session_item:hover {
+  background: var(--primary-softer);
+}
+
+.chat_session_item.active {
+  background: var(--primary-soft);
+}
+
+.chat_session_item_main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat_session_item_title {
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.chat_session_item_time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.chat_session_item_actions {
+  display: none;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.chat_session_item:hover .chat_session_item_actions {
+  display: flex;
+}
+
+.chat_session_icon_btn {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat_session_icon_btn:hover {
+  background: var(--surface-alt);
+  color: var(--primary);
+}
+
+.chat_session_delete:hover {
+  color: var(--danger-text-strong);
+  background: var(--danger-soft);
+}
+
+/* ---- 消息级操作行（复制 / 重新生成）---- */
+
+.answer_actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.message.bot:hover .answer_actions,
+.answer_actions:focus-within {
+  opacity: 1;
+}
+
+.answer_action_btn {
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  padding: 3px 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.answer_action_btn:hover {
+  border-color: var(--border-strong);
+  color: var(--primary);
+}
+
+/* ---- 代码高亮（highlight.js）：亮色 github 风格，暗色单独覆盖 ---- */
+
+:root {
+  --hl-comment: #6a737d;
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-title: #8250df;
+  --hl-attr: #116329;
+  --hl-meta: #953800;
+}
+
+.hljs-comment, .hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-keyword, .hljs-selector-tag, .hljs-deletion {
+  color: var(--hl-keyword);
+}
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-selector-attr {
+  color: var(--hl-string);
+}
+.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet {
+  color: var(--hl-number);
+}
+.hljs-title, .hljs-section, .hljs-name, .hljs-selector-id, .hljs-selector-class {
+  color: var(--hl-title);
+}
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable {
+  color: var(--hl-attr);
+}
+.hljs-meta, .hljs-type, .hljs-built_in, .hljs-params {
+  color: var(--hl-meta);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hl-comment: #8b949e;
+    --hl-keyword: #ff7b72;
+    --hl-string: #a5d6ff;
+    --hl-number: #79c0ff;
+    --hl-title: #d2a8ff;
+    --hl-attr: #7ee787;
+    --hl-meta: #ffa657;
+  }
+}
+
+html[data-theme='dark'] {
+  --hl-comment: #8b949e;
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #79c0ff;
+  --hl-title: #d2a8ff;
+  --hl-attr: #7ee787;
+  --hl-meta: #ffa657;
+}
+
+/* ---- 代码块复制按钮 ---- */
+
+.message .content_bot pre {
+  position: relative;
+}
+
+pre.has_copy_btn {
+  position: relative;
+}
+
+.code_copy_btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 11.5px;
+  padding: 2px 9px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+pre.has_copy_btn:hover .code_copy_btn,
+.code_copy_btn:focus-visible,
+.code_copy_btn.copied {
+  opacity: 1;
+}
+
+.code_copy_btn.copied {
+  color: var(--success);
+  border-color: var(--success);
+}
+
+@media (max-width: 480px) {
+  .chat_sessions_bar { padding: 8px 12px 0; }
+  .chat_session_new { padding: 6px 11px; }
+  .answer_actions { opacity: 1; }
+}
+

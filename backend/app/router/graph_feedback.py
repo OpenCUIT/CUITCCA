@@ -6,7 +6,7 @@ best-effort（handlers/qa_cache.py 不抛异常），反馈落库失败也不影
 from fastapi import APIRouter, Form, Request
 from llama_index.core.base.llms.types import ChatMessage, MessageRole
 from llama_index.core.schema import NodeWithScore
-from router.graph_session import _chat_histories, _client_id, _last_query_response
+from router.graph_session import _chat_histories, _last_query_response, effective_client_id
 from starlette import status
 from starlette.responses import JSONResponse
 from utils.logger import error_logger
@@ -20,6 +20,7 @@ async def qa_feedback(
     query: str = Form(max_length=5000),
     response: str = Form(max_length=20000),
     vote: str = Form(...),
+    conversation_id: str = Form(None, max_length=64),
 ):
     """回答质量反馈——反馈闭环的入口。
 
@@ -56,8 +57,10 @@ async def qa_feedback(
         )
 
     # 防投毒：response 必须等于本会话最后一条 assistant 消息（归一化到端点
-    # 同样的 8000 字符截断再比，避免超长答案被截断后误拒）。
-    history: list[ChatMessage] = list(_chat_histories.get(_client_id(request)) or [])
+    # 同样的 8000 字符截断再比，避免超长答案被截断后误拒）。会话键要跟问答
+    # 端点一致——多会话前端带 conversation_id 时两边都用同一个复合键。
+    session_key = effective_client_id(request, conversation_id)
+    history: list[ChatMessage] = list(_chat_histories.get(session_key) or [])
     last_assistant = next(
         (m.content for m in reversed(history) if m.role == MessageRole.ASSISTANT), None
     )
@@ -67,7 +70,7 @@ async def qa_feedback(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    source_nodes: list[NodeWithScore] = list(_last_query_response.get(_client_id(request)) or [])
+    source_nodes: list[NodeWithScore] = list(_last_query_response.get(session_key) or [])
     if vote == "up":
         await qa_cache.store_curated(query, response, source_nodes)
     else:
