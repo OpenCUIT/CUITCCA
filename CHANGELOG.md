@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/campus` 只读 API：通知公告列表/搜索/分类/详情、校园服务列表/搜索/详情、总量统计。
 - Agent 新工具 `search_announcements` / `search_campus_services`（共 6 个工具），
   Agent system prompt 增加按问题形态选工具的规则。
+- `evals/run_index_topology_eval.py`：索引拓扑 A/B（多索引路由 vs 单一合并索引，
+  含"加宽召回"与"不含爬取网页"两个变量组），额外统计**路由损失**（A 漏 B 中）
+  与检索失败次数。
+- `scripts/merge_indexes.py` + `handlers/vector_store.merge_collections()`：直接
+  搬运向量（不重新 embedding）按内容去重合并 collection；新增
+  `EXCLUDED_COLLECTIONS` 环境变量控制哪些 collection 不进索引注册表。
 
 - 知识库文档级管理：`GET /index/{name}/documents`（按 ref_doc_id 聚合的文档列表：
   文件名/chunk 数/大小/来源）+ `POST /index/{name}/reindex`（单文档重新索引），
@@ -27,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `GET /manage/ai-metrics` 提供分位与分布聚合。
 
 ### Changed
+- 索引拓扑收敛为**单一索引**：把 campus / campus-corpus / campus-web 合并成
+  `campus-all`（2114 chunk，按"文件名 + 正文 sha256"去重跳过 569），旧 collection
+  用 `EXCLUDED_COLLECTIONS` 排除出注册表（数据仍在盘上）。依据是 76 题 golden 的
+  实测：多索引 `RouterRetriever` + `LLMSingleSelector` 平均延迟 9.5–24 秒、选择器
+  解析失败率 0–22% 之间抖动（失败即降级成"我还不知道"）；单一合并索引 0.7–0.9 秒、
+  零失败、质量持平（hit@1 81.58%、hit_rate@5 94.74%、MRR 0.864）。
 - `/index/{name}/insertdoc` 文本录入改走摄取管道（表格感知分块 + 内容 sha256
   去重 + UPSERTS），不再直接 `insert_nodes` 绕过管道。
 - 索引导出 `export_index_to_file` 改为直接从 Chroma 读取——原实现依赖
@@ -42,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `index_crud` 中无调用方的 `convert_index_to_file` / `citf` / `get_docs_from_index`。
 
 ### Fixed
+- 语义缓存 collection 被当成知识库加载：`loadAllIndexes()` 把 Chroma 目录下
+  的每个 collection 都塞进索引注册表，`qa_cache`（语义缓存）因此成为
+  `RouterRetriever` / `LLMSingleSelector` 的候选之一——用户的校园问题可能被
+  路由到缓存表上检索。现在按 `is_system_collection()` 过滤，`/index/create`
+  也拒绝用保留名建索引。
 - 语义缓存命中计数自毁：`qa_cache.lookup` 用 chromadb `update` 只传 `{"hits": N}`，
   整体替换 metadata 把 answer/kind 一并抹掉，条目命中一次后返回空答案；
   现在带上完整 metadata 覆盖，并补回归测试。

@@ -110,3 +110,70 @@ def load_or_create_docstore(index_name: str) -> SimpleDocumentStore:
 def persist_docstore(index_name: str, docstore: SimpleDocumentStore) -> None:
     os.makedirs(load_env.index_save_directory, exist_ok=True)
     docstore.persist(_docstore_persist_path(index_name))
+
+
+def _merge_content_key(text: str, metadata: dict) -> str:
+    """合并去重键：文件名（去掉上传时加的 uuid 前缀）+ 正文 sha256。
+
+    跟摄取管道的 doc_id 判据（正文 sha256）一致。不去重的话，同一批语料被
+    导入过两次的 collection（比如线上的 campus 与评测用的 campus-corpus 有
+    95/104 个同名文件）合并后会塞满重复 chunk，重复项挤占 top_k 名额，等于
+    人为压低召回。
+    """
+    import hashlib
+    import re
+
+    raw = str(metadata.get("file_name") or metadata.get("source_url") or "")
+    name = re.sub(
+        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}_",
+        "",
+        raw,
+    )
+    return f"{name}::{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
+
+
+def merge_collections(source_names: list[str], target: str, batch_size: int = 500) -> dict:
+    """把若干 collection 的向量原样搬进 ``target``，按内容去重。
+
+    **直接搬 embedding，不重新摄取**：向量是同一个 embedding 模型算出来的，
+    重算一遍只是把几千个 chunk 在 CPU 上再跑一次，结果按定义完全相同。
+
+    调用方负责 target 是否已存在的取舍（本函数只做增量 add，重复调用会被
+    去重键挡掉，但不会删除 target 里已有的内容）。返回写入/跳过的条数。
+    """
+    dst = get_or_create_collection(target)
+    seen: set[str] = set()
+    existing = dst.get(include=["documents", "metadatas"])
+    for text, meta in zip(existing.get("documents") or [], existing.get("metadatas") or []):
+        seen.add(_merge_content_key(text or "", meta or {}))
+
+    added = skipped = 0
+    for name in source_names:
+        if name == target:
+            continue
+        src = get_or_create_collection(name)
+        payload = src.get(include=["embeddings", "documents", "metadatas"])
+        ids = payload.get("ids") or []
+        embeddings = payload.get("embeddings")
+        documents = payload.get("documents") or []
+        metadatas = payload.get("metadatas") or []
+        rows: list[tuple] = []
+        for i, chunk_id in enumerate(ids):
+            text = documents[i] or ""
+            meta = metadatas[i] or {}
+            key = _merge_content_key(text, meta)
+            if key in seen:
+                skipped += 1
+                continue
+            seen.add(key)
+            rows.append((f"{name}:{chunk_id}", embeddings[i], text, meta))
+        for start in range(0, len(rows), batch_size):
+            batch = rows[start:start + batch_size]
+            dst.add(
+                ids=[r[0] for r in batch],
+                embeddings=[r[1] for r in batch],
+                documents=[r[2] for r in batch],
+                metadatas=[r[3] for r in batch],
+            )
+        added += len(rows)
+    return {"target": target, "sources": source_names, "added": added, "skipped": skipped}

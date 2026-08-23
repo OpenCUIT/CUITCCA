@@ -60,9 +60,21 @@ QUERY_REWRITE_SCORE_THRESHOLD = 0.45
 # 条目（按命中次数升序），curated 是人工资产不驱逐。
 QA_CACHE_ENABLED = True
 QA_CACHE_COLLECTION = "qa_cache"
+
+# 不进索引注册表的 collection（逗号分隔）。Chroma 目录里除了知识库还住着
+# 语义缓存、评测语料、历史遗留的测试数据；``loadAllIndexes()`` 会把每个
+# collection 都当知识库加载，而索引数 > 1 时 QAWorkflow 就要多花一次 LLM
+# 调用（LLMSingleSelector）去选索引。实测（evals/run_index_topology_eval.py，
+# 76 题 golden）：多索引路由平均延迟 9.5-24 秒、选择器解析失败率在 0-22%
+# 之间抖动（失败即降级成"我还不知道"）；合并成单索引后延迟 0.7-0.9 秒、
+# 零失败、检索质量持平（hit@1 81.58%、MRR 0.864）。所以线上应当只留一个
+# 索引，其余 collection 用这个变量排除掉——排除只是不加载，数据仍在盘上。
 QA_CACHE_AUTO_THRESHOLD = 0.92
 QA_CACHE_CURATED_THRESHOLD = 0.82
 QA_CACHE_MAX_AUTO_ENTRIES = 500
+EXCLUDED_COLLECTIONS = [
+    c.strip() for c in os.environ.get('EXCLUDED_COLLECTIONS', '').split(',') if c.strip()
+]
 
 # 自动路由（handlers/auto_router.py）：去掉用户可见的"标准问答/Agent 模式"
 # 切换器后，用这个阈值判断一次提问该走零决策开销的 QAWorkflow 还是会多跳
@@ -123,7 +135,8 @@ def reload_env_variables():
         RERANK_ENABLED, RERANK_RECALL_K, RERANK_TOP_N, RERANK_SCORE_THRESHOLD, RERANKER_MODEL, \
         HYBRID_RETRIEVAL_ENABLED, QUERY_REWRITE_ENABLED, QUERY_REWRITE_SCORE_THRESHOLD, \
         AUTO_ROUTE_SCORE_THRESHOLD, QA_CACHE_ENABLED, QA_CACHE_COLLECTION, QA_CACHE_AUTO_THRESHOLD, \
-        QA_CACHE_CURATED_THRESHOLD, QA_CACHE_MAX_AUTO_ENTRIES, MIN_CHUNK_LENGTH
+        QA_CACHE_CURATED_THRESHOLD, QA_CACHE_MAX_AUTO_ENTRIES, MIN_CHUNK_LENGTH, \
+        EXCLUDED_COLLECTIONS
 
     openai_api_key = os.environ.get("OPENAI_API_KEY")
     openai_api_base = os.environ.get('OPENAI_API_BASE') or 'https://api.openai.com/v1'
@@ -187,6 +200,9 @@ def reload_env_variables():
 
     # 摄取管道噪声块过滤的最小保留长度。校准依据见上方模块级常量注释。
     MIN_CHUNK_LENGTH = int(os.environ.get('MIN_CHUNK_LENGTH', '30'))
+    EXCLUDED_COLLECTIONS = [
+        c.strip() for c in os.environ.get('EXCLUDED_COLLECTIONS', '').split(',') if c.strip()
+    ]
 
     # 启动时校验必需的 env 变量
     if not openai_api_key:
