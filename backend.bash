@@ -23,6 +23,9 @@ activate_venv() {
 }
 
 # 启动应用程序并守护进程
+# 注意：WSL2 mirrored 模式下 Windows 的 ::1 转发不进 WSL，且 HOST=:: 会变成
+# IPv6-only 监听（IPv4 全断），因此必须监听 0.0.0.0；Windows 浏览器请用
+# http://127.0.0.1:8522 访问（localhost 会解析成 ::1 导致打不开）。
 start_application() {
   echo "Starting the application with process guardian..."
   nohup bash -c "while true; do .venv/bin/python backend/app/main.py; echo 'Application crashed. Restarting...'; sleep 1; done" > fastapi.log 2>&1 &
