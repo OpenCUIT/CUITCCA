@@ -11,6 +11,7 @@ import {
     clearMessages as clearConvMessages,
 } from './conversations';
 import { appendBotBubble, appendUserBubble, enhanceCodeBlocks, renderMarkdown, scrollToBottom } from './dom';
+import { decorateReplayedExchange } from './conversation';
 
 export function activeConversation(): Conversation {
     return getActiveConversation();
@@ -33,15 +34,21 @@ export function replayHistory() {
     if (conv.messages.length === 0) return;
     // 有历史记录时，移除默认欢迎语与首屏引导，改为回放真实历史
     chatbox.innerHTML = '';
-    conv.messages.forEach(entry => {
+    let lastUserEl: HTMLElement | null = null;
+    let lastQuery = '';
+    conv.messages.forEach((entry, idx) => {
         if (entry.role === 'user') {
-            appendUserBubble(entry.content);
+            lastUserEl = appendUserBubble(entry.content).message;
+            lastQuery = entry.content;
         } else {
-            const { answerEl } = appendBotBubble();
+            const { answerEl, message } = appendBotBubble();
             answerEl.innerHTML = renderMarkdown(entry.content);
+            decorateReplayedExchange(
+                lastUserEl, message, lastQuery, entry.content, idx === conv.messages.length - 1,
+            );
         }
     });
     // 回放的历史不再变化，一次性做代码高亮
     enhanceCodeBlocks(chatbox);
-    scrollToBottom();
+    scrollToBottom(true);
 }

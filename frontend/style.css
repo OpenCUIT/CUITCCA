@@ -97,7 +97,7 @@
   --overlay-bg: rgba(244, 247, 252, 0.55);
   /* 聊天页三栏（消息列/清空按钮行/输入框行）共用同一个最大宽度 + 左右
      padding，保证左右边缘完全对齐——之前三者各写各的 max-width/padding，
-     加上 .chat_talk_container 自己的 800px 上限和 margin-right:10px，导致
+     加上 .composer 自己的 800px 上限和 margin-right:10px，导致
      输入框比消息列窄、还整体左偏（实测右缘相差 55px）。 */
   --chat-col-max: 900px;
 }
@@ -989,7 +989,7 @@ input:focus, select:focus, textarea:focus {
   box-sizing: border-box;
 }
 
-.chat_mode_bar {
+.composer_footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1027,7 +1027,7 @@ input:focus, select:focus, textarea:focus {
 .clear:active { transform: scale(0.96); }
 .clear_label { line-height: 1; }
 
-.chat_talk_container {
+.composer {
   display: flex;
   /* 原来 max-width:800px + margin-right:10px 让输入框比消息列（900px）窄，
      还整体左偏 5px——三栏对齐后输入框应该填满 .chat_container 让出的
@@ -1047,12 +1047,12 @@ input:focus, select:focus, textarea:focus {
 
 /* 输入框聚焦：由 chat.ts 切换 .is-focused 类驱动（比 JS 写死内联色更符合
    主题变量——暗色下 --primary 是浅蓝，写死的深蓝会看不见）。 */
-.chat_talk_container.is-focused {
+.composer.is-focused {
   border-color: var(--primary);
   box-shadow: var(--focus-ring), 0 6px 18px rgba(16, 42, 74, 0.10);
 }
 
-.chat_textarea {
+.composer_field {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
@@ -1061,7 +1061,7 @@ input:focus, select:focus, textarea:focus {
   padding: 8px 4px 8px 14px;
 }
 
-.textarea {
+.composer_field textarea, .composer_field .textarea {
   display: flex;
   align-items: center;
   flex-grow: 1;
@@ -1092,13 +1092,13 @@ input:focus, select:focus, textarea:focus {
 
 #input:focus { outline: none; }
 
-/* 聊天输入框的焦点态由外层 .chat_talk_container.is-focused 承担（光晕画在
+/* 聊天输入框的焦点态由外层 .composer.is-focused 承担（光晕画在
    胶囊容器上），这里必须用 #input 精确限定——宽泛的 textarea:focus 会把管理/
    反馈页文本框的焦点光晕（.node_editor:focus / .summary_textarea:focus 等）
    一并压掉。 */
 #input:focus { box-shadow: none !important; }
 
-.chat_talk_submit {
+.composer_btn--send {
   margin: 4px 10px 4px 0;
   min-width: 44px;
   height: 44px;
@@ -1119,15 +1119,15 @@ input:focus, select:focus, textarea:focus {
   transition: transform 0.15s ease, box-shadow 0.2s, filter 0.2s;
 }
 
-.chat_talk_submit:hover {
+.composer_btn--send:hover {
   filter: brightness(1.08);
   box-shadow: 0 6px 18px rgba(25, 84, 142, 0.34);
   transform: translateY(-1px);
 }
 
-.chat_talk_submit:active { transform: scale(0.94); }
+.composer_btn--send:active { transform: scale(0.94); }
 
-.chat_talk_submit:disabled {
+.composer_btn--send:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   box-shadow: none;
@@ -1135,12 +1135,12 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* 生成中的发送按钮：箭头换成一个旋转圆环，比单纯变淡更能传达"正在处理" */
-.chat_talk_submit.is-loading {
+.composer_btn--send.is-loading {
   position: relative;
   color: transparent;
 }
 
-.chat_talk_submit.is-loading::after {
+.composer_btn--send.is-loading::after {
   content: '';
   position: absolute;
   width: 18px;
@@ -1151,7 +1151,7 @@ input:focus, select:focus, textarea:focus {
   animation: spin 0.8s linear infinite;
 }
 
-.chat_talk_stop {
+.composer_btn--stop {
   margin: 4px 8px 4px 0;
   min-width: 40px;
   height: 40px;
@@ -1168,8 +1168,8 @@ input:focus, select:focus, textarea:focus {
   transition: background-color 0.2s, transform 0.15s;
 }
 
-.chat_talk_stop:hover { background: rgba(229, 72, 77, 0.08); transform: scale(1.05); }
-.chat_talk_stop:active { transform: scale(0.94); }
+.composer_btn--stop:hover { background: rgba(229, 72, 77, 0.08); transform: scale(1.05); }
+.composer_btn--stop:active { transform: scale(0.94); }
 
 /* ===== 思考指示器 ===== */
 .thinking-indicator {
@@ -2891,7 +2891,7 @@ input:focus, select:focus, textarea:focus {
 
 @media (max-width: 768px) {
   .side_left { min-width: auto !important; }
-  /* .chat_talk_container 的 max-width:100% 覆盖已不再需要：三栏对齐后基础
+  /* .composer 的 max-width:100% 覆盖已不再需要：三栏对齐后基础
      规则本身就是 flex:1（P2-9），天然填满 .chat_container 让出的空间，不
      会比父容器宽。 */
   .message .content_man, .message .content_bot { max-width: 100%; }
@@ -2914,14 +2914,14 @@ input:focus, select:focus, textarea:focus {
   /* 窄屏保持横排：清空(带文字标签) + 输入框(flex) + 发送(44) 排得下一行。
      以前这里把 .clear_label 藏起来只剩图标——和 index.html 里"移动端没有
      hover，等于完全没有说明"这条设计意图直接矛盾（见那里的注释），窄屏反而
-     又变回一个裸垃圾桶图标。.chat_mode_bar 是独占一行 + justify-content:
+     又变回一个裸垃圾桶图标。.composer_footer 是独占一行 + justify-content:
      flex-end，390px 下空间充裕，不需要靠藏文字来省空间。 */
-  .chat_container { flex-direction: row; height: auto; padding: 0 8px; gap: 6px; }
+  .chat_container { height: auto; padding: 0 8px; gap: 6px; }
   /* min-width:0 是唯一还需要的覆盖：flex 子元素默认 min-width:auto 会按内容
      撑开，窄屏下会把输入框挤宽溢出；margin/flex 已经是基础规则（P2-9），
      不用在这里重复。 */
-  .chat_talk_container { min-width: 0; }
-  .chat_talk_submit { margin-right: 0; }
+  .composer { min-width: 0; }
+  .composer_btn--send { margin-right: 0; }
   /* 首屏引导在窄屏收窄缩进与胶囊 */
   .starter { padding-left: 12px; }
   .starter_chip { font-size: 13px; padding: 7px 13px 7px 8px; }
@@ -2989,174 +2989,6 @@ input:focus, select:focus, textarea:focus {
 /* ==========================================================================
    多会话工具条 + 消息级操作 + 代码高亮（阶段 8）
    ========================================================================== */
-
-.chat_sessions_bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 22px 0;
-  max-width: var(--chat-col-max);
-  margin: 0 auto;
-  width: 100%;
-}
-
-.chat_session_new {
-  flex-shrink: 0;
-  border: 1px dashed var(--border-strong);
-  background: transparent;
-  color: var(--primary);
-  border-radius: var(--radius-pill);
-  font-size: 13px;
-  padding: 6px 14px;
-  cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
-}
-
-.chat_session_new:hover {
-  background: var(--primary-soft);
-  box-shadow: var(--shadow-xs);
-}
-
-.chat_session_current_wrap {
-  position: relative;
-  min-width: 0;
-  flex: 1;
-  max-width: 320px;
-}
-
-.chat_session_current {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface);
-  color: var(--text-primary);
-  border-radius: var(--radius-pill);
-  padding: 6px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.chat_session_current:hover {
-  border-color: var(--border-strong);
-}
-
-.chat_session_title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.chat_session_caret {
-  color: var(--text-tertiary);
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
-.chat_session_menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  max-height: 340px;
-  overflow-y: auto;
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: 6px;
-  z-index: 900;
-  animation: msg-in 0.18s ease;
-}
-
-.chat_session_empty {
-  padding: 14px;
-  text-align: center;
-  color: var(--text-tertiary);
-  font-size: 13px;
-}
-
-.chat_session_item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  border-radius: var(--radius-sm);
-  padding: 4px 6px 4px 4px;
-}
-
-.chat_session_item:hover {
-  background: var(--primary-softer);
-}
-
-.chat_session_item.active {
-  background: var(--primary-soft);
-}
-
-.chat_session_item_main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  border: none;
-  background: transparent;
-  padding: 6px 8px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.chat_session_item_title {
-  font-size: 13px;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-.chat_session_item_time {
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
-
-.chat_session_item_actions {
-  display: none;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.chat_session_item:hover .chat_session_item_actions {
-  display: flex;
-}
-
-.chat_session_icon_btn {
-  border: none;
-  background: transparent;
-  color: var(--text-tertiary);
-  border-radius: 6px;
-  width: 26px;
-  height: 26px;
-  font-size: 13px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chat_session_icon_btn:hover {
-  background: var(--surface-alt);
-  color: var(--primary);
-}
-
-.chat_session_delete:hover {
-  color: var(--danger-text-strong);
-  background: var(--danger-soft);
-}
 
 /* ---- 消息级操作行（复制 / 重新生成）---- */
 
@@ -3261,8 +3093,6 @@ pre.has_copy_btn:hover .code_copy_btn,
 }
 
 @media (max-width: 480px) {
-  .chat_sessions_bar { padding: 8px 12px 0; }
-  .chat_session_new { padding: 6px 11px; }
   .answer_actions { opacity: 1; }
 }
 
@@ -3371,4 +3201,288 @@ pre.has_copy_btn:hover .code_copy_btn,
   color: var(--danger-text-strong);
   border-color: var(--danger-border-strong);
   background: var(--danger-soft);
+}
+
+/* ==========================================================================
+   侧栏会话列表 + 悬浮胶囊输入区 + 回到底部 + 编辑并重发
+   ========================================================================== */
+
+/* ---- 侧栏：会话是聊天页的主体，功能入口压成一行图标 ---- */
+
+.side_convs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;              /* 让 .conv_list 能在 flex 容器里真正滚动 */
+  padding: 12px 10px 4px;
+}
+
+.conv_new {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.conv_new:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-softer);
+}
+
+.conv_search {
+  width: 100%;
+  padding: 7px 11px;
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.conv_search:focus { border-color: var(--primary); }
+
+.conv_list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px 8px;
+}
+
+.conv_group {
+  padding: 10px 6px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+
+.conv_item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+
+.conv_item:hover { background: var(--primary-softer); }
+
+.conv_item.active {
+  background: var(--primary-soft);
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+
+.conv_item_main {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 6px 8px 10px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 13.5px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.conv_item.active .conv_item_main { color: var(--primary-strong); font-weight: 600; }
+
+/* 每项的重命名/删除：hover 才出现，避免一列图标把标题挤没；键盘焦点同样
+   要能看见，否则纯键盘用户永远够不到这两个操作。 */
+.conv_item_actions {
+  display: flex;
+  gap: 2px;
+  padding-right: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.conv_item:hover .conv_item_actions,
+.conv_item:focus-within .conv_item_actions { opacity: 1; }
+
+.conv_item_action {
+  border: none;
+  background: none;
+  padding: 4px 5px;
+  border-radius: var(--radius-xs, 6px);
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.conv_item_action:hover { background: var(--surface); color: var(--text-primary); }
+.conv_delete:hover { color: var(--danger); }
+
+.conv_empty {
+  padding: 18px 8px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+
+.side_nav_icons {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border-faint);
+}
+
+.side_nav_icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.side_nav_icon:hover { background: var(--primary-softer); color: var(--primary); }
+.side_nav_icon.active { background: var(--primary-soft); color: var(--primary-strong); }
+
+/* ---- 悬浮胶囊输入区 ---- */
+
+/* .chat_container 原来是横排（清空 + 输入框 + 发送 并排一行）。新结构里它装
+   的是"胶囊 + 胶囊下方一行说明"，必须竖排，否则说明那一行会挤在胶囊右边。 */
+.chat_container {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.composer {
+  position: relative;
+  align-items: flex-end;
+  border-radius: 26px;
+  padding-right: 54px;        /* 给右下角那颗按钮让位 */
+}
+
+.composer_field { padding: 10px 4px 10px 18px; }
+
+.composer_field textarea {
+  width: 100%;
+  max-height: 200px;
+  border: none;
+  outline: none;
+  background: none;
+  resize: none;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+
+/* 发送与停止是同一个位置的两个状态（生成中互换），所以都绝对定位到右下角。 */
+.composer_btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  margin: 0;
+}
+
+.composer_footer {
+  justify-content: space-between;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 6px;
+}
+
+/* ---- 回到最新 ---- */
+
+.scroll_bottom_btn {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 12px;
+  z-index: 3;
+  padding: 7px 14px;
+  border: 1px solid var(--border-faint);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.scroll_bottom_btn:hover { color: var(--primary); border-color: var(--primary); }
+
+.talk_outlinein { position: relative; }
+
+/* ---- 消息级操作：hover 才出现（移动端没有 hover，媒体查询里常显） ---- */
+
+.answer_actions { opacity: 0; transition: opacity 0.15s; }
+.message:hover .answer_actions,
+.message:focus-within .answer_actions { opacity: 1; }
+
+.user_edit_btn {
+  align-self: center;
+  margin-right: 6px;
+  border: none;
+  background: none;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-size: 13px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.message.user:hover .user_edit_btn,
+.message.user:focus-within .user_edit_btn { opacity: 1; }
+.user_edit_btn:hover { color: var(--primary); }
+
+.user_edit_box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.user_edit_input {
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: vertical;
+  background: none;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.user_edit_actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.answer_action_btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  /* 移动端没有 hover：这些操作必须常显，否则等于不存在 */
+  .answer_actions,
+  .user_edit_btn,
+  .conv_item_actions { opacity: 1; }
+  .side_convs { padding: 10px 8px 4px; }
 }

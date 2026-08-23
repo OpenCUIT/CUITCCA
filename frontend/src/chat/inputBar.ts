@@ -1,11 +1,11 @@
 // ===== 输入框行为：自适应高度 / 窄屏 placeholder / Enter 发送 / 焦点描边 =====
 
-const inputEl = document.getElementById('input') as HTMLInputElement;
+const inputEl = document.getElementById('input') as HTMLTextAreaElement;
 
 // 自动增长输入框高度：超过 4 行高的内容不额外增长，用滚动显示
 function autoResizeInput() {
     inputEl.style.height = 'auto';
-    const maxHeight = 120;
+    const maxHeight = 200;
     inputEl.style.height = Math.min(inputEl.scrollHeight, maxHeight) + 'px';
 }
 

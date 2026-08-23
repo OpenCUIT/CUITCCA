@@ -33,11 +33,19 @@ function readAll(): Conversation[] {
     }
 }
 
+/** 会话数据变更事件：侧栏列表靠它刷新（标题在首条消息后才定下来）。 */
+export const CONVERSATIONS_CHANGED_EVENT = 'cuitcca:conversations-changed';
+
 function writeAll(conversations: Conversation[]): void {
     try {
         localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(conversations));
     } catch {
         // localStorage 不可用（隐私模式等）时静默跳过持久化
+    }
+    // 在唯一的写入出口广播，而不是让每个调用点自己记得刷新列表——漏一处就是
+    // "发完消息侧栏标题还是「新对话」"这种只在特定路径下复现的 bug。
+    if (typeof document !== 'undefined') {
+        document.dispatchEvent(new CustomEvent(CONVERSATIONS_CHANGED_EVENT));
     }
 }
 

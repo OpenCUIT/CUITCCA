@@ -8,13 +8,14 @@
 //   history.ts        当前会话的持久化适配层与回放
 //   conversation.ts   发送主流程、NDJSON 流式解析、工具轨迹、建议、反馈
 //   citations.ts      参考来源列表
-//   sessionsBar.ts    会话工具条（新建/切换/重命名/删除）
+//   sessionsBar.ts    侧栏会话列表（新建/搜索/切换/重命名/删除）
 
 import './chat/inputBar';
 import { sendMessage, stopGenerating } from './chat/conversation';
 import { clearHistory, replayHistory } from './chat/history';
 import { getActiveConversation } from './chat/conversations';
 import { initSessionsBar } from './chat/sessionsBar';
+import { initScrollFollow } from './chat/dom';
 import { apiFetch } from './utils/api';
 
 function initStarter() {
@@ -83,4 +84,5 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('submit')?.addEventListener('click', sendMessage);
   initStarter();
   initSessionsBar({ rebuildView });
+  initScrollFollow();
 });

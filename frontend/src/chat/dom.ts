@@ -7,13 +7,49 @@ export function renderMarkdown(rawText: string): string {
     return DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
 }
 
-export function scrollToBottom() {
+// ===== 自动跟随滚动 =====
+// 流式回答期间每帧都会调 scrollToBottom。用户想往上翻看前几轮时，无条件跟随
+// 等于每来一个 token 就把人拽回底部，根本没法回读——所以一旦用户主动上滚就
+// 脱离跟随，滚回底部附近再自动恢复，脱离期间显示"回到最新"按钮。
+const NEAR_BOTTOM_PX = 80;
+let autoFollow = true;
+
+function scroller(): HTMLElement | null {
     // 真正装消息、可滚动的容器是 .talk_content（style.css 里 overflow-y:
     // auto 的那个），不是 .chat_bottom——.chat_bottom 是它的兄弟节点，待在
     // .talk_outline 这个外层容器里，可滚动余量恒为 0，scrollIntoView 在它
     // 身上是空操作（实测 12 轮对话后 scrollTop 停在 0，可滚动余量 1209px）。
-    const scroller = document.querySelector('.talk_content') as HTMLElement | null;
-    if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    return document.querySelector('.talk_content') as HTMLElement | null;
+}
+
+function isNearBottom(el: HTMLElement): boolean {
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX;
+}
+
+/** 滚到底部。``force`` 用于"用户明确要求回到最新"，忽略脱离状态。 */
+export function scrollToBottom(force = false) {
+    const el = scroller();
+    if (!el) return;
+    if (force) autoFollow = true;
+    if (!autoFollow) return;
+    el.scrollTop = el.scrollHeight;
+}
+
+export function initScrollFollow() {
+    const el = scroller();
+    const btn = document.getElementById('scroll-bottom-btn');
+    if (!el) return;
+
+    const sync = () => {
+        autoFollow = isNearBottom(el);
+        btn?.classList.toggle('is-hidden', autoFollow);
+    };
+    el.addEventListener('scroll', sync, { passive: true });
+    btn?.addEventListener('click', () => {
+        scrollToBottom(true);
+        sync();
+    });
+    sync();
 }
 
 export function appendUserBubble(text: string): { message: HTMLElement; content: HTMLElement } {

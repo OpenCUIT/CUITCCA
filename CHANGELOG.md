@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   搬运向量（不重新 embedding）按内容去重合并 collection；新增
   `EXCLUDED_COLLECTIONS` 环境变量控制哪些 collection 不进索引注册表。
 
+- 聊天界面向主流 chat 产品对齐：会话列表搬进侧栏（＋新对话、搜索、按今天/昨天/
+  前 7 天/更早分组、重命名/删除，功能入口压成一行图标）；输入区改悬浮胶囊（自适应
+  多行、发送与停止占同一位置互换）；消息 hover 操作条（复制/重新生成/编辑并重发，
+  回放的历史消息同样带上）；上滚脱离自动跟随 + 「回到最新」按钮。
 - 知识库文档级管理：`GET /index/{name}/documents`（按 ref_doc_id 聚合的文档列表：
   文件名/chunk 数/大小/来源）+ `POST /index/{name}/reindex`（单文档重新索引），
   管理页新增「文档」面板。

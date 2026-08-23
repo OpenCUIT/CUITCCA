@@ -12,7 +12,7 @@ import {
     showThinkingIndicator,
 } from './dom';
 import { appendHistory } from './history';
-import { getActiveConversation, removeLastBotMessage } from './conversations';
+import { getActiveConversation, popLastExchange, removeLastBotMessage } from './conversations';
 
 // ===== 自动路由：后端按检索置信度自己决定走标准问答还是 Agent 模式 =====
 // 原来这里有一个"标准问答/Agent 模式"切换器，把"这个问题复不复杂"这个架构
@@ -38,8 +38,12 @@ export function stopGenerating() {
 }
 
 export function setGeneratingUI(isGenerating: boolean) {
-    (document.getElementById('submit') as HTMLButtonElement).disabled = isGenerating;
-    (document.getElementById('submit') as HTMLElement).classList.toggle('is-loading', isGenerating);
+    // 发送与停止占胶囊里同一个位置：生成中把发送整个换成停止，而不是并排放
+    // 两颗让用户先分辨哪颗是哪颗。
+    const submit = document.getElementById('submit') as HTMLButtonElement;
+    submit.disabled = isGenerating;
+    submit.classList.toggle('is-loading', isGenerating);
+    submit.classList.toggle('is-hidden', isGenerating);
     (document.getElementById('stop-generating') as HTMLElement).classList.toggle('is-hidden', !isGenerating);
 }
 
@@ -120,27 +124,134 @@ function demoteLastRegenRow() {
 }
 
 export function sendMessage() {
-    const input = document.getElementById('input') as HTMLInputElement;
+    const input = document.getElementById('input') as HTMLTextAreaElement;
     const question = input.value.trim();
     if (question === '') return;
+    input.value = '';
+    input.style.height = 'auto';
+    submitQuestion(question);
+}
 
+/** 提交一轮提问：建气泡、写本地历史、跑流式管线。改写重发也走这里。 */
+function submitQuestion(question: string, opts: { popLast?: boolean; skipCache?: boolean } = {}) {
     // 新一轮提问开始：上一条回答下面的追问建议不再适用于当前语境，清掉，
     // 避免用户误以为那些建议还是针对"接下来要问什么"的。
     clearActiveSuggestions();
     dismissStarter();
     demoteLastRegenRow();
-    appendUserBubble(question);
+    const { message: userMessage } = appendUserBubble(question);
+    attachEditAction(userMessage, question);
     appendHistory('user', question);
-    input.value = '';
 
     const { answerEl, citations, message } = appendBotBubble();
     showThinkingIndicator(answerEl);
     // 不再额外调用 message.scrollIntoView：它的平滑滚动会被后续 streamAsk
     // 里逐帧同步赋值 scrollTop 的 scrollToBottom 打断，两者打架。
-    scrollToBottom();
+    scrollToBottom(true);
 
     setGeneratingUI(true);
-    streamAsk(question, answerEl, citations, message).finally(() => setGeneratingUI(false));
+    streamAsk(question, answerEl, citations, message, opts).finally(() => setGeneratingUI(false));
+}
+
+// ===== 编辑并重发（只有最后一轮的提问可编辑）=====
+// 改中间某一轮会让后面所有轮次的上下文错位——服务端历史是线性的，没有分支
+// 结构，改完之后"后续几轮基于旧问题的回答"就成了假的。所以和"重新生成"一样
+// 只开放最后一轮：撤回本地与服务端的上一轮（pop_last），再用新问题重跑。
+let lastEditBtn: HTMLElement | null = null;
+
+function demoteLastEditBtn() {
+    lastEditBtn?.remove();
+    lastEditBtn = null;
+}
+
+/** 回放历史时补上消息级操作：任意回答可复制，最后一轮还能编辑重发/重新生成。
+ *  在线生成的那一轮由 submitQuestion / streamAsk 自己挂，这里只管从
+ *  localStorage 回放出来的旧消息——不补的话，刷新一次页面所有操作就都消失了。 */
+export function decorateReplayedExchange(
+    userEl: HTMLElement | null,
+    botEl: HTMLElement | null,
+    query: string,
+    answer: string,
+    isLast: boolean,
+) {
+    if (botEl) renderMessageActions(botEl, query, answer, { isLast });
+    if (isLast && userEl) attachEditAction(userEl, query);
+}
+
+function attachEditAction(userMessageEl: HTMLElement, question: string) {
+    demoteLastEditBtn();
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'user_edit_btn';
+    btn.title = '编辑并重新提问';
+    btn.setAttribute('aria-label', '编辑并重新提问');
+    btn.textContent = '✎';
+    btn.addEventListener('click', () => startEditing(userMessageEl, question));
+    userMessageEl.appendChild(btn);
+    lastEditBtn = btn;
+}
+
+function startEditing(userMessageEl: HTMLElement, question: string) {
+    const contentEl = userMessageEl.querySelector('.content_man') as HTMLElement | null;
+    if (!contentEl || userMessageEl.querySelector('.user_edit_box')) return;
+    contentEl.classList.add('is-hidden');
+    demoteLastEditBtn();
+
+    const box = document.createElement('div');
+    box.className = 'user_edit_box';
+    const textarea = document.createElement('textarea');
+    textarea.className = 'user_edit_input';
+    textarea.value = question;
+    textarea.rows = Math.min(6, question.split('\n').length + 1);
+    box.appendChild(textarea);
+
+    const actions = document.createElement('div');
+    actions.className = 'user_edit_actions';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'answer_action_btn';
+    cancel.textContent = '取消';
+    const submit = document.createElement('button');
+    submit.type = 'button';
+    submit.className = 'answer_action_btn primary';
+    submit.textContent = '发送';
+    actions.appendChild(cancel);
+    actions.appendChild(submit);
+    box.appendChild(actions);
+
+    const restore = () => {
+        box.remove();
+        contentEl.classList.remove('is-hidden');
+        attachEditAction(userMessageEl, question);
+    };
+    cancel.addEventListener('click', restore);
+    submit.addEventListener('click', () => {
+        const next = textarea.value.trim();
+        if (!next) return;
+        if (next === question) {
+            restore();
+            return;
+        }
+        // 撤掉本轮：本地存储 + 两个气泡（提问与回答）。服务端历史由
+        // pop_last=1 撤回，skip_cache 保证不会命中旧问题的语义缓存。
+        const conv = getActiveConversation();
+        popLastExchange(conv.id);
+        const botMessage = userMessageEl.nextElementSibling;
+        if (botMessage && botMessage.classList.contains('bot')) botMessage.remove();
+        userMessageEl.remove();
+        submitQuestion(next, { popLast: true, skipCache: true });
+    });
+    textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            submit.click();
+        }
+        if (e.key === 'Escape') restore();
+    });
+
+    userMessageEl.appendChild(box);
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
 }
 
 // ===== NDJSON 流式解析 + 工具调用轨迹 =====

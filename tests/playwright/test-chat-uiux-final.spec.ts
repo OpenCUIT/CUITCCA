@@ -78,9 +78,9 @@ test('聊天页面 UI/UX 最终检查', async ({ page }) => {
 
   // 14. Check input container is centered (corrected logic)
   const chatContainerRect = await page.$eval('.chat_container', el => el.getBoundingClientRect());
-  const chatTalkContainerRect = await page.$eval('.chat_talk_container', el => el.getBoundingClientRect());
+  const composerRect = await page.$eval('.composer', el => el.getBoundingClientRect());
   const containerCenter = chatContainerRect.left + chatContainerRect.width / 2;
-  const talkCenter = chatTalkContainerRect.left + chatTalkContainerRect.width / 2;
+  const talkCenter = composerRect.left + composerRect.width / 2;
   const centerOffset = Math.abs(talkCenter - containerCenter);
   results.push({ check: '输入框居中', status: centerOffset < 100 ? 'PASS' : 'FAIL', detail: `offset=${Math.round(centerOffset)}px, talk_center=${Math.round(talkCenter)}, container_center=${Math.round(containerCenter)}` });
 

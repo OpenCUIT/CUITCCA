@@ -10,7 +10,9 @@ import { getApiKey, setApiKey, clearApiKey, onUnauthorized } from './utils/api';
   // Vite 把 <script type="module"> 重写后会丢失 data-active 自定义属性，
   // 且 ES module 中 document.currentScript 为 null。改从 URL 推断当前页面。
   const _path = window.location.pathname.replace(/\/+$/, '');
-  const _page = _path.slice(_path.lastIndexOf('/') + 1).replace('.html', '');
+  // 根路径 "/" 与 "/index.html" 是同一个页面：不折算的话聊天页在根路径下
+  // 既拿不到导航高亮，也不会渲染侧栏的会话列表（activePage 为空串）。
+  const _page = _path.slice(_path.lastIndexOf('/') + 1).replace('.html', '') || 'index';
   const activePage = (_page === 'index' || _page === 'manage' || _page === 'use_function' || _page === 'feed_back' || _page === 'config')
     ? _page
     : '';
@@ -108,6 +110,32 @@ import { getApiKey, setApiKey, clearApiKey, onUnauthorized } from './utils/api';
   const cards = NAV_ITEMS.filter((i) => i.variant === 'card').map(renderCard).join('');
   const rows = NAV_ITEMS.filter((i) => i.variant === 'row').map(renderRow).join('');
 
+  // 聊天页的侧栏主体是**会话列表**，功能入口压缩成一行图标。
+  // 主流 chat 产品都是这个信息层级：会话是第一等对象，"知识库管理/系统配置"
+  // 这类页面入口一天点不了一次，不该占掉整条侧栏。列表内容由
+  // chat/sessionsBar.ts 填进 #side-conversations——sidebar.ts 被五个页面共用，
+  // 不能把 localStorage 里的会话逻辑拖进来。
+  function renderIconNav(): string {
+    return NAV_ITEMS.map((item) => {
+      const active = activePage === item.page;
+      return (
+        `<a href="${item.href}" title="${item.label}" aria-label="${item.label}">` +
+        `<span class="side_nav_icon${active ? ' active' : ''}">` +
+        iconSvg(item.icon.name, item.icon.cls, 20) +
+        '</span></a>'
+      );
+    }).join('');
+  }
+
+  const chatLayout = activePage === 'index';
+  const bodyHTML = chatLayout
+    ? `<div class="side_convs" id="side-conversations"></div>
+        <nav class="side_nav_icons" aria-label="功能导航">${renderIconNav()}</nav>`
+    : `<div class="side_menu">
+            <div class="menu_mid">${cards}</div>
+            ${rows}
+        </div>`;
+
   const sidebarHTML =
     `<div class="side_left_flex">
         <div class="head_left">
@@ -116,10 +144,7 @@ import { getApiKey, setApiKey, clearApiKey, onUnauthorized } from './utils/api';
             </div>
             <div class="head_font">成信大校园助手</div>
         </div>
-        <div class="side_menu">
-            <div class="menu_mid">${cards}</div>
-            ${rows}
-        </div>
+        ${bodyHTML}
         <div class="side_bottom">
             <button class="side_action_btn" id="api-key-btn" type="button" title="设置后端访问密钥">${hasKey ? '🔑 已配置密钥' : '🔑 设置访问密钥'}</button>
         </div>
