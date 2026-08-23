@@ -559,9 +559,12 @@ html { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; 
   font-size: 13.5px;
   transition: filter 0.2s, transform 0.15s, box-shadow 0.2s, opacity 0.2s;
   white-space: nowrap;
-  /* --btn-fg 而不是写死 #fff：暗色下填充按钮改用近黑字压亮色底，写死白字
-     在暗色渐变上对比度不够（实测低至 2.08:1）。 */
-  color: var(--btn-fg);
+  /* 基类是"中性描边按钮"：裸 .btn（配置页测试连接、管理页刷新）不带任何
+     变体，此前只继承了给填充按钮准备的浅色前景 --btn-fg，压在浅色卡片上
+     几乎不可见。填充变体在下面盖掉这三行。 */
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
 }
 
 .btn:hover { filter: brightness(1.07); box-shadow: var(--shadow-sm); }
@@ -587,6 +590,13 @@ html { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; 
   /* 同上，跟 --danger-grad 起点色（#b81f26）对齐。 */
   box-shadow: 0 3px 10px rgba(184, 31, 38, 0.24);
 }
+
+/* 填充变体：盖掉基类的中性描边与前景色（--btn-fg 是给填充底色校准过的）。 */
+.btn-primary, .btn-success, .btn-danger {
+  border-color: transparent;
+  color: var(--btn-fg);
+}
+.btn-primary { color: #fff; }
 
 /* ===== 统一表单控件 ===== */
 input, select, textarea {
@@ -1543,12 +1553,16 @@ input:focus, select:focus, textarea:focus {
    ====================================================================== */
 /* ===== Editorial Operations Console (manage.html) ===== */
 
-/* — Design tokens, scoped to .console-page —
+/* — Design tokens（--ed-*，定义在 :root）—
    曾经是一套独立的"编辑纸感"配色（米黄纸底 + IBM Plex + 藏蓝），导致管理台
    和全站其余页面（蓝色玻璃渐变风）完全像两个产品。现在全部别名到全局主题
    token：统一走 :root，观感与主页/反馈页一致。
-   保留 --ed-* 变量名是为了不动 122 处引用这些 token 的既有规则。 */
-.console-page {
+   保留 --ed-* 变量名是为了不动 122 处引用这些 token 的既有规则。
+   必须定义在 :root 而不是 .console-page：引用它们的规则里有 .form_group /
+   .field_hint / .btn-submit 这种通用选择器，配置页、反馈页也会命中，token
+   只在管理台可见时那些声明在别的页面直接失效（输入框边框消失、hint 掉回
+   正文字号）。 */
+:root {
   --ed-paper: var(--glass-bg);
   --ed-paper-alt: var(--primary-softer);
   --ed-surface: var(--glass-bg);
@@ -1563,7 +1577,9 @@ input:focus, select:focus, textarea:focus {
   --ed-success: var(--success);
   --ed-danger: var(--danger);
   --ed-warning: var(--warning);
+}
 
+.console-page {
   background: transparent;
   color: var(--text-primary);
 }
@@ -2358,6 +2374,15 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: 0.02em;
   color: var(--ed-ink-3);
   font-weight: 400;
+  /* 管理页把它写在 <label> 里（继承 10px），配置页写在输入框后面当独立说明
+     行——后者没有可继承的小字号，不显式给就会掉回正文 16px。 */
+  font-size: 11.5px;
+}
+/* 独立成行的说明（.form_group 的直接子元素，如配置页），label 内的内联用法
+   不受影响。 */
+.form_group > .field_hint {
+  display: block;
+  margin-top: 5px;
 }
 .form_group input, .form_group textarea {
   width: 100%;
