@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="./icon.png" type="image/x-icon">
+    <link rel="stylesheet" href="./style.css">
+    <title>成信大校园助手 - 校园服务</title>
+</head>
+<body>
+    <div class="outline">
+        <nav id="side_left"></nav>
+        <!-- 右边 -->
+        <main class="side_right">
+            <header class="headline">
+                <div class="headline_hidemenu">
+                    <button id="button">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor" class="bi bi-arrow-bar-right" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                            <path fill-rule="evenodd" d="M6 8a.5.5 0 0 0 .5.5h5.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L12.293 7.5H6.5A.5.5 0 0 0 6 8Zm-2.5 7a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 1 0v13a.5.5 0 0 1-.5.5Z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="headline_head">校园服务</div>
+                <div class="share"></div>
+            </header>
+            <div class="campus_container">
+                <div class="glass_card campus_panel">
+                    <div class="campus_toolbar">
+                        <div class="campus_search_wrap">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                            </svg>
+                            <input type="search" id="svc-search" class="campus_search" placeholder="搜索服务：校车、快递、热水…" aria-label="搜索校园服务">
+                            <button id="svc-search-btn" class="btn btn-primary campus_search_btn" type="button">搜索</button>
+                        </div>
+                        <div class="campus_chips" id="svc-categories" role="tablist" aria-label="服务分类"></div>
+                    </div>
+                    <div id="svc-loading" class="campus_loading" hidden>
+                        <div class="spinner"></div>
+                        <span class="loading-text">正在加载服务…</span>
+                    </div>
+                    <div id="svc-grid" class="campus_svc_grid"></div>
+                    <div id="svc-empty" class="campus_empty" hidden>
+                        <div class="campus_empty_icon">🧭</div>
+                        <p>没有找到相关服务，换个关键词试试，或在聊天页直接问助手。</p>
+                    </div>
+                </div>
+            </div>
+            <div id="svc-detail-overlay" class="campus_overlay" hidden>
+                <div class="campus_detail glass_card" role="dialog" aria-modal="true" aria-labelledby="svc-detail-title">
+                    <div class="campus_detail_head">
+                        <div class="campus_detail_title_group">
+                            <span id="svc-detail-category" class="campus_tag"></span>
+                        </div>
+                        <button id="svc-detail-close" class="campus_close" type="button" aria-label="关闭详情">×</button>
+                    </div>
+                    <h2 id="svc-detail-title" class="campus_detail_title"></h2>
+                    <div id="svc-detail-body" class="campus_md"></div>
+                    <div id="svc-detail-source" class="campus_meta"></div>
+                </div>
+            </div>
+            <div id="toast-container" class="feedback-top"></div>
+        </main>
+    </div>
+
+    <script src="./marked.min.js"></script>
+    <script src="./purify.min.js"></script>
+    <script type="module" src="./src/sidebar.ts" data-active="services"></script>
+    <script type="module" src="./src/campus/services.ts"></script>
+</body>
+</html>
