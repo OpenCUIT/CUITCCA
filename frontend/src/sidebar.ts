@@ -11,7 +11,7 @@ import { getApiKey, setApiKey, clearApiKey, onUnauthorized } from './utils/api';
   // 且 ES module 中 document.currentScript 为 null。改从 URL 推断当前页面。
   const _path = window.location.pathname.replace(/\/+$/, '');
   const _page = _path.slice(_path.lastIndexOf('/') + 1).replace('.html', '');
-  const activePage = (_page === 'index' || _page === 'manage' || _page === 'use_function' || _page === 'feed_back' || _page === 'config' || _page === 'announcements' || _page === 'services')
+  const activePage = (_page === 'index' || _page === 'manage' || _page === 'use_function' || _page === 'feed_back' || _page === 'config')
     ? _page
     : '';
 
@@ -44,11 +44,6 @@ import { getApiKey, setApiKey, clearApiKey, onUnauthorized } from './utils/api';
     stackOverflow:
       '<path d="M12.412 14.572V10.29h1.428V16H1v-5.71h1.428v4.282h9.984z"/>' +
       '<path d="M3.857 13.145h7.137v-1.428H3.857v1.428zM10.254 0 9.108.852l4.26 5.727 1.146-.852L10.254 0zm-3.54 3.377 5.484 4.567.913-1.097L7.627 2.28l-.914 1.097zM4.922 6.55l6.47 3.013.603-1.294-6.47-3.013-.603 1.294zm-.925 3.344 6.985 1.469.294-1.398-6.985-1.468-.294 1.397z"/>',
-    bell:
-      '<path d="M8 1.5c-2.2 0-4 1.8-4 4v2.5l-1.3 2.3a.6.6 0 0 0 .5.9h9.6a.6.6 0 0 0 .5-.9L12 8V5.5c0-2.2-1.8-4-4-4z"/>' +
-      '<path d="M6.7 12.3a1.4 1.4 0 0 0 2.6 0z"/>',
-    grid:
-      '<path d="M2 2h5.2v5.2H2V2zm6.8 0H14v5.2H8.8V2zM2 8.8h5.2V14H2V8.8zm6.8 0H14V14H8.8V8.8z"/>',
   };
 
   function iconSvg(name: keyof typeof ICONS, cls: string, size: number): string {
@@ -74,8 +69,6 @@ import { getApiKey, setApiKey, clearApiKey, onUnauthorized } from './utils/api';
     { variant: 'card', wrapperClass: 'menu_mid1', page: 'manage', href: './manage.html', title: '管理 & 增加', label: '知识库管理', icon: { name: 'houseAdd', cls: 'bi-house-add', size: 30 } },
     { variant: 'card', wrapperClass: 'menu_mid2', page: 'use_function', href: './use_function.html', title: '食用指南', label: '使用指南', icon: { name: 'compass', cls: 'bi-compass', size: 30 } },
     { variant: 'row', page: 'index', href: './index.html', label: '智能聊天', icon: { name: 'chatQuote', cls: 'bi-chat-quote', size: 22 } },
-    { variant: 'row', page: 'announcements', href: './announcements.html', label: '校园通知', icon: { name: 'bell', cls: 'bi-bell', size: 22 } },
-    { variant: 'row', page: 'services', href: './services.html', label: '校园服务', icon: { name: 'grid', cls: 'bi-grid', size: 22 } },
     { variant: 'row', page: 'config', href: './config.html', label: '系统配置', icon: { name: 'gear', cls: 'bi-gear', size: 22 } },
     { variant: 'row', page: 'feed_back', href: './feed_back.html', label: '问题反馈', icon: { name: 'stackOverflow', cls: 'bi-stack-overflow', size: 22 } },
   ];

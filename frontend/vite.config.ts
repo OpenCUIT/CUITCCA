@@ -15,8 +15,6 @@ export default defineConfig({
         use_function: resolve(__dirname, 'use_function.html'),
         feed_back: resolve(__dirname, 'feed_back.html'),
         config: resolve(__dirname, 'config.html'),
-        announcements: resolve(__dirname, 'announcements.html'),
-        services: resolve(__dirname, 'services.html'),
       },
       output: {
         entryFileNames: 'assets/[name].[hash].js',
@@ -31,7 +29,6 @@ export default defineConfig({
       '/index': 'http://localhost:8522',
       '/response': 'http://localhost:8522',
       '/manage': 'http://localhost:8522',
-      '/campus': 'http://localhost:8522',
     },
   },
   resolve: {

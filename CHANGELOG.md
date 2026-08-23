@@ -11,8 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 结构化校园数据层：SQLite `announcements` / `campus_services` 表 + 幂等种子脚本
   `scripts/seed_campus_data.py`（爬取语料 524 条官方资讯 + 8 项人工整理办事指南）。
 - `/campus` 只读 API：通知公告列表/搜索/分类/详情、校园服务列表/搜索/详情、总量统计。
-- 校园通知页（announcements.html）与校园服务页（services.html）：分类 chips、关键词搜索、
-  分页、Markdown 详情弹层，接入侧栏导航。
 - Agent 新工具 `search_announcements` / `search_campus_services`（共 6 个工具），
   Agent system prompt 增加按问题形态选工具的规则。
 
